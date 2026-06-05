@@ -1,0 +1,59 @@
+/* Styles personnalisés pour Leaflet */
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  min-width: 200px;
+}
+
+.leaflet-popup-tip-container {
+  display: none;
+}
+
+/* Style pour le contrôle de zoom */
+.leaflet-control-zoom {
+  border: none !important;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.leaflet-control-zoom a {
+  background-color: white !important;
+  border: none !important;
+  color: #0EA5E9 !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+  transition: all 0.2s !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: #0EA5E9 !important;
+  color: white !important;
+}
+
+/* Animation pour les marqueurs */
+.leaflet-marker-icon {
+  animation: markerBounce 0.5s ease-out;
+}
+
+@keyframes markerBounce {
+  0% {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  50% {
+    transform: translateY(5px);
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
