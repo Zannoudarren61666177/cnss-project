@@ -87,3 +87,14 @@ export async function createTravailleur(data: any): Promise<any> {
     body: JSON.stringify(data),
   });
 }
+export async function getSlides(): Promise<any[]> {
+  return apiFetch('/slides');
+}
+
+export async function getActualites(): Promise<any[]> {
+  return apiFetch('/actualites');
+}
+
+export async function getPrestationsPubliques(): Promise<any[]> {
+  return apiFetch('/prestations/publiques');
+}

@@ -1,4 +1,14 @@
-import { Facebook, Twitter, Linkedin, Mail, Phone, MapPin } from 'lucide-react';
+import {
+  FaFacebook,
+  FaTwitter,
+  FaLinkedin
+} from "react-icons/fa";
+
+import {
+  Mail,
+  Phone,
+  MapPin
+} from "lucide-react";
 import { CNSSLogo } from './CNSSLogo';
 
 export function Footer() {
@@ -14,17 +24,19 @@ export function Footer() {
             <p className="text-sm text-gray-400 mb-4">
               Caisse Nationale de Sécurité Sociale du Bénin - Votre protection sociale, notre engagement.
             </p>
-            <div className="flex gap-3">
-              <a href="#" className="w-8 h-8 bg-gray-800 hover:bg-blue-500 hover:scale-110 active:scale-95 rounded-lg flex items-center justify-center transition-all duration-200">
-                <Facebook className="w-4 h-4" />
-              </a>
-              <a href="#" className="w-8 h-8 bg-gray-800 hover:bg-blue-500 hover:scale-110 active:scale-95 rounded-lg flex items-center justify-center transition-all duration-200">
-                <Twitter className="w-4 h-4" />
-              </a>
-              <a href="#" className="w-8 h-8 bg-gray-800 hover:bg-blue-500 hover:scale-110 active:scale-95 rounded-lg flex items-center justify-center transition-all duration-200">
-                <Linkedin className="w-4 h-4" />
-              </a>
-            </div>
+           <div className="flex gap-3">
+  <a href="#" className="w-8 h-8 bg-gray-800 hover:bg-blue-500 hover:scale-110 active:scale-95 rounded-lg flex items-center justify-center transition-all duration-200">
+    <FaFacebook />
+  </a>
+
+  <a href="#" className="w-8 h-8 bg-gray-800 hover:bg-blue-500 hover:scale-110 active:scale-95 rounded-lg flex items-center justify-center transition-all duration-200">
+    <FaTwitter />
+  </a>
+
+  <a href="#" className="w-8 h-8 bg-gray-800 hover:bg-blue-500 hover:scale-110 active:scale-95 rounded-lg flex items-center justify-center transition-all duration-200">
+    <FaLinkedin />
+  </a>
+</div>
           </div>
 
           <div>
