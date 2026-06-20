@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { PublicLayout } from './PublicLayout';
+import { CNSSLogo } from './CNSSLogo';
 import { User, History, Users2, TrendingUp, Award, MapPin, Phone, Mail, Network, Shield, Heart, Briefcase } from 'lucide-react';
 import dgPhoto from '../../imports/DG_TCHINTCHIN_2.jpg';
 
@@ -43,77 +44,94 @@ export function PresentationPage() {
       case 'dg':
         return (
           <div className="max-w-7xl mx-auto">
-            {/* En-tête style journal */}
-            <div className="border-b-4 border-[#4A90E2] mb-12 pb-6">
-              <div className="text-center">
-                <p className="text-sm uppercase tracking-widest text-gray-500 mb-2">CNSS Bénin — Direction Générale</p>
-                <h1 className="text-5xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Georgia, serif' }}>
-                  Le Directeur Général
-                </h1>
-                <p className="text-gray-600 italic">Apollinaire CADETE TCHINTCHIN</p>
+            {/* En-tête moderne et épuré */}
+            <div className="mb-12">
+              <div className="bg-gradient-to-r from-[#0096DA] via-[#0091D1] to-[#0096DA] rounded-xl shadow-lg overflow-hidden">
+                <div className="px-8 py-12 text-white">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="h-12 w-auto">
+                      <CNSSLogo size="small" />
+                    </div>
+                    <span className="text-sm uppercase tracking-widest opacity-90">Direction Générale</span>
+                  </div>
+                  <h1 className="text-4xl md:text-5xl font-bold mb-3">Apollinaire CADETE TCHINTCHIN</h1>
+                  <p className="text-lg opacity-95">Directeur Général de la CNSS Bénin</p>
+                </div>
               </div>
             </div>
 
-            {/* Layout type journal - 2 colonnes */}
-            <div className="grid lg:grid-cols-3 gap-8">
-              {/* Colonne gauche - Photo et infos */}
-              <div className="lg:col-span-1">
-                <div className="bg-white border-2 border-gray-200 p-6">
-                  <img
-                    src={dgPhoto}
-                    alt="Apollinaire CADETE TCHINTCHIN"
-                    className="w-full"
-                  />
+            {/* Layout moderne - 2 colonnes */}
+            <div className="grid lg:grid-cols-5 gap-8 items-start">
+              {/* Colonne gauche - Photo professionnelle */}
+              <div className="lg:col-span-2">
+                <div className="sticky top-24">
+                  {/* Photo avec ombre professionnelle */}
+                  <div className="rounded-lg overflow-hidden shadow-2xl mb-6">
+                    <img
+                      src={dgPhoto}
+                      alt="Apollinaire CADETE TCHINTCHIN"
+                      className="w-full h-auto object-cover"
+                    />
+                  </div>
+                  
+                  {/* Infos clés */}
+                  <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
+                    <div className="border-l-4 border-[#0096DA] pl-4">
+                      <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Fonction</p>
+                      <p className="text-lg font-bold text-gray-900">Directeur Général</p>
+                    </div>
+                    
+                    <div className="border-l-4 border-[#0096DA] pl-4">
+                      <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Depuis</p>
+                      <p className="text-lg font-bold text-gray-900">7 Juin 2019</p>
+                    </div>
+                    
+                    <div className="border-l-4 border-[#0096DA] pl-4">
+                      <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Formation</p>
+                      <p className="text-sm font-semibold text-gray-900">DESS Droit des Affaires et Fiscalités</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Colonne droite - Contenu type journal */}
-              <div className="lg:col-span-2 space-y-8">
-                {/* Mot du DG */}
-                <div className="bg-white border-2 border-gray-200 p-8">
-                  <div className="border-b-2 border-gray-900 pb-3 mb-6">
-                    <h2 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
-                      Mot du Directeur Général
-                    </h2>
-                  </div>
-
-                  <div className="prose prose-lg max-w-none" style={{ fontFamily: 'Georgia, serif' }}>
-                    <p className="text-xl italic text-gray-700 mb-6 border-l-4 border-[#4A90E2] pl-6 py-2">
+              {/* Colonne droite - Contenu */}
+              <div className="lg:col-span-3 space-y-8">
+                {/* Message du DG */}
+                <div className="bg-white rounded-lg shadow-md p-8 border-t-4 border-[#0096DA]">
+                  <h2 className="text-3xl font-bold text-gray-900 mb-6">Message du Directeur Général</h2>
+                  
+                  <div className="space-y-6 text-gray-800">
+                    <p className="text-lg italic text-[#0096DA] font-semibold">
                       "Chers employeurs, assurés, employés et partenaires de la CNSS,"
                     </p>
                     
-                    <p className="text-gray-800 leading-relaxed mb-4 text-justify">
-                      <span className="text-6xl font-bold text-[#4A90E2] float-left mr-3 mt-1 leading-none">C</span>
-                      'est avec un grand honneur que je m'adresse à vous en tant que Directeur Général de la Caisse Nationale de Sécurité Sociale du Bénin. Notre mission est noble : garantir la protection sociale de tous les travailleurs béninois et leurs familles.
+                    <p className="text-base leading-relaxed text-justify">
+                      C'est avec un grand honneur que je m'adresse à vous en tant que Directeur Général de la Caisse Nationale de Sécurité Sociale du Bénin. Notre mission est noble : garantir la protection sociale de tous les travailleurs béninois et leurs familles.
                     </p>
                     
-                    <p className="text-gray-800 leading-relaxed mb-4 text-justify">
+                    <p className="text-base leading-relaxed text-justify">
                       Dans un monde en constante évolution, nous nous engageons à moderniser nos services, à digitaliser nos processus et à améliorer continuellement l'expérience de nos affiliés. La transformation numérique que nous menons vise à vous offrir des services plus rapides, plus accessibles et plus transparents.
                     </p>
                     
-                    <div className="bg-[#4A90E2] text-white p-6 my-6">
-                      <p className="text-xl font-semibold text-center" style={{ fontFamily: 'Georgia, serif' }}>
-                        "Ensemble, construisons un système de sécurité sociale fort, inclusif et durable pour le Bénin."
-                      </p>
+                    <div className="bg-gradient-to-r from-[#0096DA] to-[#0091D1] text-white rounded-lg p-6 italic text-center text-lg font-semibold shadow-md">
+                      "Ensemble, construisons un système de sécurité sociale fort, inclusif et durable pour le Bénin."
                     </div>
                   </div>
                 </div>
 
-                {/* Biographie */}
-                <div className="bg-white border-2 border-gray-200 p-8">
-                  <div className="border-b-2 border-gray-900 pb-3 mb-6">
-                    <h2 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
-                      Biographie
-                    </h2>
-                  </div>
-
-                  <div className="space-y-6" style={{ fontFamily: 'Georgia, serif' }}>
-                    <p className="text-gray-800 leading-relaxed text-justify">
+                {/* Biographie et Parcours */}
+                <div className="bg-white rounded-lg shadow-md p-8 border-t-4 border-[#0096DA]">
+                  <h2 className="text-3xl font-bold text-gray-900 mb-6">Biographie et Parcours</h2>
+                  
+                  <div className="space-y-6">
+                    <p className="text-base text-gray-800 leading-relaxed text-justify">
                       Apollinaire CADETE TCHINTCHIN a été nommé Directeur Général de la Caisse Nationale de Sécurité Sociale (CNSS) du Bénin le 7 juin 2019. Juriste de formation, il est titulaire d'un DESS en Droit des Affaires et Fiscalités.
                     </p>
 
-                    <div className="bg-gray-50 p-6 border-l-4 border-[#4A90E2]">
-                      <h3 className="font-bold text-gray-900 text-xl mb-3">
+                    {/* Parcours à la CNSS */}
+                    <div className="bg-gradient-to-r from-[#0096DA]/5 to-transparent rounded-lg p-6 border-l-4 border-[#0096DA]">
+                      <h3 className="font-bold text-gray-900 text-lg mb-3 flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 bg-[#0096DA] rounded-full"></span>
                         Parcours à la CNSS
                       </h3>
                       <p className="text-gray-800 leading-relaxed text-justify">
@@ -121,8 +139,10 @@ export function PresentationPage() {
                       </p>
                     </div>
 
-                    <div className="bg-gray-50 p-6 border-l-4 border-[#4A90E2]">
-                      <h3 className="font-bold text-gray-900 text-xl mb-3">
+                    {/* Vision et Réalisations */}
+                    <div className="bg-gradient-to-r from-[#0096DA]/5 to-transparent rounded-lg p-6 border-l-4 border-[#0096DA]">
+                      <h3 className="font-bold text-gray-900 text-lg mb-3 flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 bg-[#0096DA] rounded-full"></span>
                         Vision et Réalisations
                       </h3>
                       <p className="text-gray-800 leading-relaxed text-justify">
@@ -130,8 +150,10 @@ export function PresentationPage() {
                       </p>
                     </div>
 
-                    <div className="bg-gray-50 p-6 border-l-4 border-[#4A90E2]">
-                      <h3 className="font-bold text-gray-900 text-xl mb-3">
+                    {/* Engagements et Priorités */}
+                    <div className="bg-gradient-to-r from-[#0096DA]/5 to-transparent rounded-lg p-6 border-l-4 border-[#0096DA]">
+                      <h3 className="font-bold text-gray-900 text-lg mb-3 flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 bg-[#0096DA] rounded-full"></span>
                         Engagements et Priorités
                       </h3>
                       <p className="text-gray-800 leading-relaxed text-justify">
