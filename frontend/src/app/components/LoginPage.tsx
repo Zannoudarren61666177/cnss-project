@@ -14,7 +14,22 @@ export function LoginPage() {
     console.log('Login:', { numeroImmatriculation, password });
 
     // Déterminer le type d'utilisateur en fonction du numéro d'immatriculation
-    if (numeroImmatriculation.startsWith('AGT-')) {
+    const raw = numeroImmatriculation.trim();
+
+    // If purely numeric, try to infer by length (employeur 8 digits, travailleur 14+)
+    const onlyDigits = /^[0-9]+$/.test(raw);
+    if (onlyDigits) {
+      if (raw.length === 8) {
+        navigate('/employeur/tableau-de-bord');
+        return;
+      }
+      if (raw.length >= 12) {
+        navigate('/travailleur/tableau-de-bord');
+        return;
+      }
+    }
+
+    if (raw.startsWith('AGT-')) {
       // Agents : AGT-IMMAT, AGT-EMP, AGT-COT, AGT-PREST, AGT-SUP, AGT-ADMIN
       if (numeroImmatriculation.includes('IMMAT')) {
         navigate('/agent/immatriculation');
@@ -74,7 +89,7 @@ export function LoginPage() {
                   type="text"
                   value={numeroImmatriculation}
                   onChange={(e) => setNumeroImmatriculation(e.target.value)}
-                  placeholder="BJ-EMP-20260503-0010"
+                  placeholder=""
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />

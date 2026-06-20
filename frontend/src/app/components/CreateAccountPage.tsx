@@ -66,7 +66,7 @@ export function CreateAccountPage() {
                   name="numeroImmatriculation"
                   value={formData.numeroImmatriculation}
                   onChange={handleChange}
-                  placeholder="Ex: BJ-EMP-20260503-0010"
+                  placeholder=""
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
                   required
                 />
