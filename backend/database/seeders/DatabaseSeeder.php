@@ -24,7 +24,8 @@ class DatabaseSeeder extends Seeder
         // Call custom seeders
         $this->call([
             AgentSeeder::class,
-            EmployeurSeeder::class,
+            FaqSeeder::class,
+            EmployeurTestSeeder::class,
         ]);
     }
 }

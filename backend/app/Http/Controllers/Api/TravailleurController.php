@@ -13,23 +13,37 @@ class TravailleurController extends Controller
         return Travailleur::with(['employeur', 'user'])->get();
     }
 
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'employeur_id' => ['required', 'exists:employeurs,id'],
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
-            'cin' => ['required', 'string', 'max:50', 'unique:travailleurs,cin'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'position' => ['nullable', 'string', 'max:255'],
-        ]);
+   public function store(Request $request)
+{
+    $data = $request->validate([
+        'employeur_id'      => ['required', 'exists:employeurs,id'],
+        'first_name'        => ['required', 'string', 'max:255'],
+        'last_name'         => ['required', 'string', 'max:255'],
+        'cin'               => ['required', 'string', 'max:50', 'unique:travailleurs,cin'],
+        'phone'             => ['nullable', 'string', 'max:50'],
+        'email'             => ['nullable', 'email', 'max:255'],
+        'position'          => ['nullable', 'string', 'max:255'],
+        'date_naissance'    => ['nullable', 'date'],
+        'lieu_naissance'    => ['nullable', 'string', 'max:255'],
+        'sexe'              => ['nullable', 'in:M,F'],
+        'nationalite'       => ['nullable', 'string', 'max:255'],
+        'adresse'           => ['nullable', 'string', 'max:255'],
+        'ville'             => ['nullable', 'string', 'max:255'],
+        'type_contrat'      => ['nullable', 'string', 'max:50'],
+        'date_embauche'     => ['nullable', 'date'],
+        'salaire_brut'      => ['nullable', 'numeric', 'min:0'],
+        'categorie_emploi'  => ['nullable', 'string', 'max:100'],
+        'piece_identite'    => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+    ]);
 
-        $data['user_id'] = $request->user()->id;
-
-        return response()->json(Travailleur::create($data), 201);
+    if ($request->hasFile('piece_identite')) {
+        $data['piece_identite'] = $request->file('piece_identite')->store('pieces-identite', 'public');
     }
 
+    $data['statut'] = 'en_attente';
+
+    return response()->json(Travailleur::create($data), 201);
+}
     public function show(string $id)
     {
         return Travailleur::with(['employeur', 'user'])->findOrFail($id);
@@ -61,4 +75,12 @@ class TravailleurController extends Controller
 
         return response()->json(['message' => 'Travailleur supprimé']);
     }
+    public function parEmployeur(string $employeur_id)
+{
+    return response()->json(
+        \App\Models\Travailleur::where('employeur_id', $employeur_id)
+            ->with('user')
+            ->get()
+    );
+}
 }

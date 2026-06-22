@@ -1,0 +1,27 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('cotisations', function (Blueprint $table) {
+            if (!Schema::hasColumn('cotisations', 'reference')) {
+                $table->string('reference')->nullable()->unique()->after('id');
+            }
+            if (!Schema::hasColumn('cotisations', 'echeance')) {
+                $table->date('echeance')->nullable()->after('annee');
+            }
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('cotisations', function (Blueprint $table) {
+            $table->dropColumn(['reference', 'echeance']);
+        });
+    }
+};

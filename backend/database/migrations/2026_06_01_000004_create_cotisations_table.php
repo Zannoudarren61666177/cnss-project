@@ -10,10 +10,12 @@ return new class extends Migration
     {
         Schema::create('cotisations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('employeur_id')->constrained('employeurs')->cascadeOnDelete();
+            $table->string('reference')->nullable()->unique();
+            $table->foreignId('employeur_id')->constrained()->cascadeOnDelete();
             $table->decimal('montant', 12, 2);
             $table->unsignedTinyInteger('mois');
             $table->unsignedSmallInteger('annee');
+            $table->date('echeance')->nullable();
             $table->string('status')->default('pending');
             $table->timestamps();
         });

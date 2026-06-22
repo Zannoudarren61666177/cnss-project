@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Prestation;
 use Illuminate\Http\Request;
+use App\Helpers\ActivityLogger;
 
 class PrestationController extends Controller
 {
@@ -57,4 +58,33 @@ class PrestationController extends Controller
 
         return response()->json(['message' => 'Prestation supprimée']);
     }
+    public function valider(string $id)
+{
+    $prestation = Prestation::findOrFail($id);
+    $prestation->update(['status' => 'Approuvée']);
+    ActivityLogger::log("Approbation prestation #{$prestation->id}", 'Prestations');
+
+    return response()->json([
+        'message'    => 'Prestation approuvée',
+        'prestation' => $prestation,
+    ]);
+}
+
+public function rejeter(string $id)
+{
+    $prestation = Prestation::findOrFail($id);
+    $prestation->update(['status' => 'Rejetée']);
+    ActivityLogger::log("Rejet prestation #{$prestation->id}", 'Prestations');
+
+    return response()->json(['message' => 'Prestation rejetée']);
+}
+
+public function publiques()
+{
+    return response()->json(
+        Prestation::where('status', 'Approuvée')
+            ->with('travailleur')
+            ->get(['id', 'type', 'montant', 'date_debut', 'date_fin'])
+    );
+}
 }
