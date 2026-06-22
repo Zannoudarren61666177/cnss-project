@@ -22,10 +22,19 @@ class AgentSeeder extends Seeder
         ];
 
         foreach ($profils as $p) {
+            // generate a numeric identifier for agent (10-12 digits) in a 32-bit safe way
+            $len = rand(10, 12);
+            $matricule = (string) mt_rand(1, 9);
+            for ($i = 1; $i < $len; $i++) {
+                $matricule .= (string) mt_rand(0, 9);
+            }
+
+            $email = $matricule . '@cnss.bj';
+
             $user = User::firstOrCreate(
-                ['name' => $p['matricule']],
+                ['name' => $matricule],
                 [
-                    'email'    => strtolower(str_replace('-', '.', $p['matricule'])) . '@cnss.bj',
+                    'email'    => $email,
                     'password' => bcrypt('password123'),
                     'role'     => 'agent',
                     'statut'   => 'actif',

@@ -83,7 +83,10 @@ class EmployeurController extends Controller
 {
     $employeur = Employeur::findOrFail($id);
 
-    $numeroCnss = 'BJ-EMP-' . now()->format('Ymd') . '-' . str_pad($id, 4, '0', STR_PAD_LEFT);
+    // Generate a unique 8-digit numeric CNSS for employeur
+    do {
+        $numeroCnss = strval(mt_rand(10000000, 99999999));
+    } while (\App\Models\Employeur::where('numero_cnss', $numeroCnss)->exists());
 
     $employeur->update([
         'statut'      => 'validee',

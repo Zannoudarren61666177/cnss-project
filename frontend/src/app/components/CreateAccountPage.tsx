@@ -1,7 +1,8 @@
-import { UserPlus, Mail, ArrowLeft, Lock, FileText, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Mail, ArrowLeft, Lock, FileText, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { CNSSLogo } from './CNSSLogo';
+import { registerWithCnss } from '../api';
 
 export function CreateAccountPage() {
   const navigate = useNavigate();
@@ -13,15 +14,52 @@ export function CreateAccountPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
     if (formData.password !== formData.confirmPassword) {
-      alert('Les mots de passe ne correspondent pas');
+      setError('Les mots de passe ne correspondent pas');
       return;
     }
-    console.log('Create account:', formData);
-    navigate('/connexion');
+
+    if (formData.numeroImmatriculation.length < 8 || formData.numeroImmatriculation.length > 12) {
+      setError('Format de numéro CNSS invalide. Employeur: 8 chiffres, Travailleur/Agent: 10-12 chiffres');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await registerWithCnss(
+        formData.numeroImmatriculation,
+        formData.email,
+        formData.password
+      );
+      
+      if (response.token && response.user) {
+        localStorage.setItem('cnss_token', response.token);
+        localStorage.setItem('cnss_user', JSON.stringify(response.user));
+        
+        // Redirect based on user role
+        const role = response.user.role;
+        if (role === 'employeur') {
+          navigate('/employeur/tableau-de-bord');
+        } else if (role === 'travailleur') {
+          navigate('/travailleur/tableau-de-bord');
+        } else if (role === 'agent') {
+          navigate('/agent/tableau-de-bord');
+        } else {
+          navigate('/connexion');
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de la création du compte');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,6 +91,13 @@ export function CreateAccountPage() {
           <p className="text-gray-600 text-center mb-8">
             Utilisez votre numéro d'immatriculation CNSS pour créer votre compte
           </p>
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
@@ -172,10 +217,20 @@ export function CreateAccountPage() {
 
             <button
               type="submit"
-              className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 hover:shadow-lg hover:scale-105 active:scale-95 font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+              disabled={loading}
+              className="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 font-semibold transition-all duration-200 flex items-center justify-center gap-2"
             >
-              <UserPlus className="w-5 h-5" />
-              Créer mon compte
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Création en cours...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-5 h-5" />
+                  Créer mon compte
+                </>
+              )}
             </button>
           </form>
 

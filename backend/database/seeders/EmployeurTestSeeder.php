@@ -23,13 +23,17 @@ class EmployeurTestSeeder extends Seeder
             'statut'   => 'actif',
         ]);
 
-        // 2. Fiche employeur, déjà validée
+        // 2. Fiche employeur, déjà validée — generate 8-digit numeric CNSS
+        do {
+            $employeurNumero = strval(mt_rand(10000000, 99999999));
+        } while (Employeur::where('numero_cnss', $employeurNumero)->exists());
+
         $employeur = Employeur::create([
             'user_id'         => $user->id,
             'company_name'    => 'Entreprise Test SARL',
             'type_employeur'  => 'societe',
             'ifu'             => '3202012345678',
-            'numero_cnss'     => 'BJ-EMP-' . now()->format('Ymd') . '-0001',
+            'numero_cnss'     => $employeurNumero,
             'statut'          => 'validee',
             'address'         => 'Quartier Akpakpa, Cotonou',
             'phone'           => '+229 97 00 00 01',
@@ -59,7 +63,16 @@ class EmployeurTestSeeder extends Seeder
             'phone'             => '+229 97 00 00 02',
             'email'             => 'travailleur.test@cnss.bj',
             'position'          => 'Comptable',
-            'numero_cnss'       => 'BJ-TRV-' . now()->format('Ymd') . '-0001',
+            // generate 10-12 digit CNSS for travailleur
+            // generate 10-12 digit CNSS for travailleur in a safe way
+            'numero_cnss'       => (function() {
+                $len = rand(10, 12);
+                $s = (string) mt_rand(1,9);
+                for ($i = 1; $i < $len; $i++) {
+                    $s .= (string) mt_rand(0,9);
+                }
+                return $s;
+            })(),
             'statut'            => 'actif',
             'date_naissance'    => '1995-04-12',
             'lieu_naissance'    => 'Cotonou',
@@ -91,7 +104,14 @@ class EmployeurTestSeeder extends Seeder
             'phone'             => '+229 97 00 00 03',
             'email'             => 'travailleur2.test@cnss.bj',
             'position'          => 'Assistante de direction',
-            'numero_cnss'       => 'BJ-TRV-' . now()->format('Ymd') . '-0002',
+            'numero_cnss'       => (function() {
+                $len = rand(10, 12);
+                $s = (string) mt_rand(1,9);
+                for ($i = 1; $i < $len; $i++) {
+                    $s .= (string) mt_rand(0,9);
+                }
+                return $s;
+            })(),
             'statut'            => 'actif',
             'date_naissance'    => '1998-09-23',
             'lieu_naissance'    => 'Porto-Novo',

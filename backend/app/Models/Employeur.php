@@ -11,7 +11,7 @@ class Employeur extends Model
     protected $fillable = [
         'user_id', 'company_name', 'siret',
         'address', 'phone', 'email',
-        'statut', 'numero_cnss', 'secteur', 'forme_juridique',
+        'statut', 'numero_cnss', 'secteur', 'forme_juridique', 'password',
     ];
 
     protected $appends = ['raison_sociale', 'adresse', 'telephone', 'nb_travailleurs'];

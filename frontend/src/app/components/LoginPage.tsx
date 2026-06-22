@@ -1,6 +1,7 @@
 import { LogIn, CreditCard, Lock, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { loginWithNumero, storeUser } from '../api';
 import { CNSSLogo } from './CNSSLogo';
 
 export function LoginPage() {
@@ -9,49 +10,44 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login:', { numeroImmatriculation, password });
-
-    // Déterminer le type d'utilisateur en fonction du numéro d'immatriculation
     const raw = numeroImmatriculation.trim();
 
-    // If purely numeric, try to infer by length (employeur 8 digits, travailleur 14+)
-    const onlyDigits = /^[0-9]+$/.test(raw);
-    if (onlyDigits) {
-      if (raw.length === 8) {
+    try {
+      const resp = await loginWithNumero(raw, password);
+
+      // Store token and user
+      localStorage.setItem('cnss_token', resp.token);
+      storeUser(resp.user as Record<string, unknown>);
+
+      // Decide navigation based on role / payload
+      const role = (resp.user as any).role || (resp.user as any).user?.role;
+      if (role === 'agent') {
+        const agentType = (resp.user as any).agent_type;
+        if (agentType === 'immatriculation') navigate('/agent/immatriculation');
+        else if (agentType === 'employeur') navigate('/agent/employeur');
+        else if (agentType === 'cotisation') navigate('/agent/cotisation');
+        else if (agentType === 'prestations') navigate('/agent/prestations');
+        else if (agentType === 'support') navigate('/agent/support');
+        else navigate('/agent');
+        return;
+      }
+
+      if ((resp.user as any).employeur || /^[0-9]{8}$/.test(raw)) {
         navigate('/employeur/tableau-de-bord');
         return;
       }
-      if (raw.length >= 12) {
+
+      if ((resp.user as any).travailleur || /^[0-9]{10,12}$/.test(raw)) {
         navigate('/travailleur/tableau-de-bord');
         return;
       }
-    }
 
-    if (raw.startsWith('AGT-')) {
-      // Agents : AGT-IMMAT, AGT-EMP, AGT-COT, AGT-PREST, AGT-SUP, AGT-ADMIN
-      if (numeroImmatriculation.includes('IMMAT')) {
-        navigate('/agent/immatriculation');
-      } else if (numeroImmatriculation.includes('EMP')) {
-        navigate('/agent/employeur');
-      } else if (numeroImmatriculation.includes('COT')) {
-        navigate('/agent/cotisation');
-      } else if (numeroImmatriculation.includes('PREST')) {
-        navigate('/agent/prestations');
-      } else if (numeroImmatriculation.includes('SUP')) {
-        navigate('/agent/support');
-      } else if (numeroImmatriculation.includes('ADMIN')) {
-        navigate('/admin');
-      }
-    } else if (numeroImmatriculation.startsWith('BJ-EMP-')) {
-      // Employeurs : BJ-EMP-XXXXXXXX-XXX
-      navigate('/employeur/tableau-de-bord');
-    } else if (numeroImmatriculation.startsWith('BJ-') && numeroImmatriculation.includes('-T')) {
-      // Travailleurs : BJ-XXXX-XXXXX-T
-      navigate('/travailleur/tableau-de-bord');
-    } else {
-      alert('Numéro d\'immatriculation non reconnu');
+      // Fallback
+      navigate('/');
+    } catch (err: any) {
+      alert(err?.message || 'Numéro d\'immatriculation ou mot de passe incorrect');
     }
   };
 
@@ -95,7 +91,7 @@ export function LoginPage() {
                 />
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                Exemples : BJ-EMP-... (Employeur), BJ-...-T (Travailleur), AGT-... (Agent)
+                Exemples : Employeur = 8 chiffres (21055652), Travailleur/Agent = 10–12 chiffres (180059076380)
               </p>
             </div>
 

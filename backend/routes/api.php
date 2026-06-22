@@ -37,6 +37,7 @@ Route::prefix('v1')->group(function () {
 
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/user',    [AuthController::class, 'user']);
+        Route::post('auth/change-password', [AuthController::class, 'changePassword']);
         Route::apiResource('faqs', FaqController::class)->except(['index']);
         Route::get('activity-logs', function () {
     return \App\Models\ActivityLog::with('user')->latest()->limit(20)->get();

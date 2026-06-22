@@ -14,7 +14,7 @@ class Travailleur extends Model
     'cin', 'phone', 'email', 'position', 'statut', 'numero_cnss',
     'date_naissance', 'lieu_naissance', 'sexe', 'nationalite',
     'adresse', 'ville', 'type_contrat', 'date_embauche',
-    'salaire_brut', 'categorie_emploi', 'piece_identite',
+    'salaire_brut', 'categorie_emploi', 'piece_identite', 'password',
 ];
 
     protected $appends = ['nom', 'prenom', 'poste'];

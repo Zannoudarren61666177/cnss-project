@@ -56,10 +56,26 @@ export async function login(email: string, password: string): Promise<AuthRespon
   });
 }
 
+// Login using CNSS number (employeur / travailleur / agent identifiers)
+export async function loginWithNumero(numeroCnss: string, password: string): Promise<AuthResponse> {
+  return apiFetch('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ numero_cnss: numeroCnss, password }),
+  });
+}
+
 export async function register(name: string, email: string, password: string): Promise<AuthResponse> {
   return apiFetch('/auth/register', {
     method: 'POST',
     body: JSON.stringify({ name, email, password }),
+  });
+}
+
+// Register using CNSS number
+export async function registerWithCnss(numeroCnss: string, email: string, password: string): Promise<AuthResponse> {
+  return apiFetch('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ numero_cnss: numeroCnss, email, password }),
   });
 }
 
@@ -69,6 +85,17 @@ export async function getUser(): Promise<Record<string, unknown>> {
 
 export async function logout(): Promise<void> {
   return apiFetch('/auth/logout', { method: 'POST' });
+}
+
+export async function changePassword(currentPassword: string, newPassword: string, newPasswordConfirmation: string): Promise<{ message: string }> {
+  return apiFetch('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ 
+      current_password: currentPassword, 
+      new_password: newPassword,
+      new_password_confirmation: newPasswordConfirmation,
+    }),
+  });
 }
 
 export async function activerCompteEmployeur(numeroCnss: string, email: string, password: string): Promise<any> {

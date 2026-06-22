@@ -1,7 +1,8 @@
-import { ArrowLeft, User, Lock, Bell, Globe, Mail, Phone, Building, CreditCard, Download, Save } from 'lucide-react';
+import { ArrowLeft, User, Lock, Bell, Globe, Mail, Phone, Building, CreditCard, Download, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { CNSSLogo } from './CNSSLogo';
+import { changePassword } from '../api';
 
 export function ParametresPage() {
   const [activeSection, setActiveSection] = useState<'profil' | 'securite' | 'notifications' | 'entreprise'>('profil');
@@ -21,12 +22,49 @@ export function ParametresPage() {
     confirmPassword: '',
   });
 
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     });
+  };
+
+  const handleSubmitPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    if (formData.newPassword !== formData.confirmPassword) {
+      setPasswordError('Les mots de passe ne correspondent pas');
+      return;
+    }
+
+    if (formData.newPassword.length < 8) {
+      setPasswordError('Le nouveau mot de passe doit contenir au moins 8 caractères');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await changePassword(formData.currentPassword, formData.newPassword, formData.confirmPassword);
+      setPasswordSuccess(true);
+      setFormData({
+        ...formData,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setTimeout(() => setPasswordSuccess(false), 5000);
+    } catch (err: any) {
+      setPasswordError(err.message || 'Erreur lors du changement de mot de passe');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const renderContent = () => {
@@ -162,9 +200,36 @@ export function ParametresPage() {
                 </div>
               </div>
 
-              <button className="mt-6 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
-                <Save className="w-5 h-5" />
-                Modifier le mot de passe
+              {passwordError && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700">{passwordError}</p>
+                </div>
+              )}
+
+              {passwordSuccess && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg flex gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-700">Mot de passe modifié avec succès</p>
+                </div>
+              )}
+
+              <button 
+                onClick={handleSubmitPassword}
+                disabled={passwordLoading}
+                className="mt-6 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors font-semibold"
+              >
+                {passwordLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Modification en cours...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Modifier le mot de passe
+                  </>
+                )}
               </button>
             </div>
 

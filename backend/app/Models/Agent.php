@@ -16,6 +16,7 @@ class Agent extends Model
         'department',
         'phone',
         'email',
+        'password',
     ];
 
     public function user()

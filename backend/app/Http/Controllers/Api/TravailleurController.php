@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Travailleur;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 
 class TravailleurController extends Controller
 {
@@ -34,6 +36,7 @@ class TravailleurController extends Controller
         'salaire_brut'      => ['nullable', 'numeric', 'min:0'],
         'categorie_emploi'  => ['nullable', 'string', 'max:100'],
         'piece_identite'    => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+        'password'          => ['nullable', 'string', 'min:8'],
     ]);
 
     if ($request->hasFile('piece_identite')) {
@@ -41,6 +44,25 @@ class TravailleurController extends Controller
     }
 
     $data['statut'] = 'en_attente';
+
+    // If email and password provided, create a linked User so the travailleur can login
+    if (!empty($data['email']) && !empty($data['password'])) {
+        // avoid creating duplicate user with same email
+        $user = User::where('email', $data['email'])->first();
+        if (! $user) {
+            $user = User::create([
+                'name' => ($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''),
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'role' => 'travailleur',
+                'statut' => 'actif',
+            ]);
+        }
+
+        $data['user_id'] = $user->id;
+        // remove raw password before creating record
+        unset($data['password']);
+    }
 
     return response()->json(Travailleur::create($data), 201);
 }
