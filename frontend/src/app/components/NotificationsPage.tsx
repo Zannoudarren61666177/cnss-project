@@ -1,7 +1,9 @@
 import { ArrowLeft, Bell, FileText, AlertCircle, CheckCircle, Info, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
+import { useUser } from '../hooks/useUser';
 import { CNSSLogo } from './CNSSLogo';
+import { getNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, downloadTravailleurAttestation } from '../api';
 
 interface Notification {
   id: number;
@@ -12,69 +14,80 @@ interface Notification {
   lue: boolean;
 }
 
-const notifications: Notification[] = [
-  {
-    id: 1,
-    type: 'declaration',
-    titre: 'Nouvelle déclaration disponible',
-    message: 'Votre déclaration pour Avril 2026 est maintenant disponible. Montant: 156,000 FCFA. Échéance: 15/05/2026',
-    date: '2026-05-01',
-    lue: false,
-  },
-  {
-    id: 2,
-    type: 'paiement',
-    titre: 'Paiement confirmé',
-    message: 'Votre paiement de 156,000 FCFA pour la période Mars 2026 a été confirmé avec succès.',
-    date: '2026-04-08',
-    lue: true,
-  },
-  {
-    id: 3,
-    type: 'info',
-    titre: 'Rappel: Échéance proche',
-    message: 'La date d\'échéance pour votre déclaration Avril 2026 approche (15/05/2026). Pensez à effectuer votre paiement.',
-    date: '2026-05-10',
-    lue: false,
-  },
-  {
-    id: 4,
-    type: 'success',
-    titre: 'Travailleur ajouté',
-    message: 'Le travailleur Kofi Mensah (TRV003) a été ajouté avec succès à votre liste de travailleurs.',
-    date: '2023-06-10',
-    lue: true,
-  },
-  {
-    id: 5,
-    type: 'info',
-    titre: 'Mise à jour des taux',
-    message: 'Les taux de cotisation pour le secteur Commerce restent inchangés: 4% (salarial) et 16% (patronal).',
-    date: '2026-01-15',
-    lue: true,
-  },
-];
-
 export function NotificationsPage() {
   const [filter, setFilter] = useState<'toutes' | 'non-lues'>('toutes');
-  const [notificationsList, setNotificationsList] = useState(notifications);
+  const [notificationsList, setNotificationsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await getNotifications();
+        if (mounted) {
+          // Map backend notification shape to frontend UI model
+          const mapped = (data as any[]).map(n => {
+            let parsed: any = null;
+            try {
+              parsed = n.content && n.content.startsWith('{') ? JSON.parse(n.content) : null;
+            } catch { /* ignore */ }
+
+            const typeTitles: Record<string, string> = {
+              immatriculation_request: 'Nouvelle demande d\'immatriculation',
+              declaration_travailleur: 'Nouvelle déclaration travailleur',
+              travailleur_valide: 'Travailleur immatriculé',
+              travailleur_rejete: 'Déclaration travailleur rejetée',
+            };
+
+            return {
+              id: n.id,
+              type: n.type || 'info',
+              titre: typeTitles[n.type] || 'Notification',
+              message: parsed?.message ?? n.content ?? '',
+              travailleurId: parsed?.travailleur_id ?? null,
+              numeroCnss: parsed?.numero_cnss ?? null,
+              date: n.created_at ? new Date(n.created_at).toLocaleString('fr-FR') : '',
+              lue: !!n.read_at,
+              raw: n,
+            };
+          });
+          setNotificationsList(mapped);
+        }
+      } catch (err) {
+        console.error('Erreur chargement notifications', err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const filteredNotifications = filter === 'non-lues'
     ? notificationsList.filter(n => !n.lue)
     : notificationsList;
 
-  const marquerCommeLue = (id: number) => {
-    setNotificationsList(notificationsList.map(n =>
-      n.id === id ? { ...n, lue: true } : n
-    ));
+  const marquerCommeLue = async (id: number) => {
+    try {
+      const updated = await markNotificationRead(id);
+      setNotificationsList(prev => prev.map(n => n.id === id ? ({ ...n, lue: true, raw: updated }) : n));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const marquerToutesCommeLues = () => {
-    setNotificationsList(notificationsList.map(n => ({ ...n, lue: true })));
+  const marquerToutesCommeLues = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotificationsList(prev => prev.map(n => ({ ...n, lue: true, raw: { ...(n.raw || {}), read_at: new Date().toISOString() } })));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const supprimerNotification = (id: number) => {
-    setNotificationsList(notificationsList.filter(n => n.id !== id));
+  const supprimerNotification = async (id: number) => {
+    try {
+      await deleteNotification(id);
+      setNotificationsList(prev => prev.filter(n => n.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const getIcon = (type: string) => {
@@ -85,8 +98,13 @@ export function NotificationsPage() {
         return <CheckCircle className="w-6 h-6 text-green-600" />;
       case 'info':
         return <Info className="w-6 h-6 text-orange-600" />;
+      case 'travailleur_valide':
       case 'success':
         return <CheckCircle className="w-6 h-6 text-green-600" />;
+      case 'travailleur_rejete':
+        return <AlertCircle className="w-6 h-6 text-red-600" />;
+      case 'declaration_travailleur':
+        return <FileText className="w-6 h-6 text-blue-600" />;
       default:
         return <Bell className="w-6 h-6 text-gray-600" />;
     }
@@ -107,13 +125,22 @@ export function NotificationsPage() {
     }
   };
 
+  const { user } = useUser();
+  const dashboardRoute = user
+    ? (user.role === 'agent'
+      ? '/agent/immatriculation'
+      : user.role === 'travailleur'
+        ? '/travailleur/tableau-de-bord'
+        : '/employeur/tableau-de-bord')
+    : '/';
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-8 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
-              to="/employeur/tableau-de-bord"
+              to={dashboardRoute}
               className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -191,6 +218,9 @@ export function NotificationsPage() {
                         <div>
                           <h3 className="font-bold text-gray-900 mb-1">{notification.titre}</h3>
                           <p className="text-sm text-gray-600">{notification.message}</p>
+                          {notification.numeroCnss && (
+                            <p className="text-sm font-mono font-semibold text-blue-700 mt-1">N° CNSS : {notification.numeroCnss}</p>
+                          )}
                         </div>
                         {!notification.lue && (
                           <span className="inline-block w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2"></span>
@@ -199,6 +229,15 @@ export function NotificationsPage() {
                       <div className="flex items-center justify-between mt-4">
                         <p className="text-xs text-gray-500">{notification.date}</p>
                         <div className="flex gap-2">
+                          {notification.type === 'travailleur_valide' && notification.travailleurId && (
+                            <button
+                              onClick={() => downloadTravailleurAttestation(notification.travailleurId)}
+                              className="text-xs text-green-600 hover:text-green-700 font-semibold flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3" />
+                              Télécharger l'attestation
+                            </button>
+                          )}
                           {!notification.lue && (
                             <button
                               onClick={() => marquerCommeLue(notification.id)}

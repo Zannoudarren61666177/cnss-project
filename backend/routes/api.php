@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\ChatbotController;
 use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\Api\TravailleurProfilController;
 
 Route::prefix('v1')->group(function () {
 
@@ -26,6 +27,7 @@ Route::prefix('v1')->group(function () {
     Route::get('prestations/publiques',[PrestationController::class,'publiques']);
     Route::get('faqs', [FaqController::class, 'index']);
     Route::post('employeurs/activer-compte', [EmployeurController::class, 'activerCompte']);
+    Route::post('travailleurs/activer-compte', [TravailleurController::class, 'activerCompte']);
     Route::get('recherche', [SearchController::class, 'rechercher']);
     Route::get('recherche', [SearchController::class, 'rechercher']);
     Route::post('chatbot', [ChatbotController::class, 'repondre']);
@@ -38,6 +40,8 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/user',    [AuthController::class, 'user']);
         Route::post('auth/change-password', [AuthController::class, 'changePassword']);
+        Route::put('auth/profile', [AuthController::class, 'updateProfile']);
+        Route::put('auth/preferences', [AuthController::class, 'updatePreferences']);
         Route::apiResource('faqs', FaqController::class)->except(['index']);
         Route::get('activity-logs', function () {
     return \App\Models\ActivityLog::with('user')->latest()->limit(20)->get();
@@ -45,6 +49,13 @@ Route::prefix('v1')->group(function () {
 
         // Stats
         Route::get('stats', [StatsController::class, 'index']);
+
+        // Validation travailleurs (avant apiResource)
+        Route::get('travailleurs/en-attente', [TravailleurController::class, 'enAttente']);
+        Route::post('travailleurs/{id}/valider', [TravailleurController::class, 'valider']);
+        Route::post('travailleurs/{id}/rejeter', [TravailleurController::class, 'rejeter']);
+        Route::post('travailleurs/{id}/renvoyer-attestation', [TravailleurController::class, 'renvoyerAttestation']);
+        Route::get('travailleurs/{id}/attestation', [TravailleurController::class, 'telechargerAttestation']);
 
         // Validation employeurs (avant apiResource)
         Route::post('employeurs/{id}/valider', [EmployeurController::class, 'valider']);
@@ -63,6 +74,11 @@ Route::prefix('v1')->group(function () {
         // Travailleurs par employeur (avant apiResource)
         Route::get('travailleurs/par-employeur/{employeur_id}', [TravailleurController::class, 'parEmployeur']);
 
+        // Espace travailleur (profil connecté)
+        Route::get('travailleur/profil', [TravailleurProfilController::class, 'monProfil']);
+        Route::get('travailleur/cotisations', [TravailleurProfilController::class, 'mesCotisations']);
+        Route::get('travailleur/droits', [TravailleurProfilController::class, 'mesDroits']);
+        Route::get('travailleur/attestation', [TravailleurProfilController::class, 'monAttestation']);
 
         // Resources
         Route::apiResource('employeurs',  EmployeurController::class);

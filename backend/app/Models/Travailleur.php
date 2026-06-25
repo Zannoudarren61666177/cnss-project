@@ -11,7 +11,7 @@ class Travailleur extends Model
 
    protected $fillable = [
     'user_id', 'employeur_id', 'first_name', 'last_name',
-    'cin', 'phone', 'email', 'position', 'statut', 'numero_cnss',
+    'cin', 'phone', 'email', 'position', 'statut', 'numero_cnss', 'raison_rejet',
     'date_naissance', 'lieu_naissance', 'sexe', 'nationalite',
     'adresse', 'ville', 'type_contrat', 'date_embauche',
     'salaire_brut', 'categorie_emploi', 'piece_identite', 'password',

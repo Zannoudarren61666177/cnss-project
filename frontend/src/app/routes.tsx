@@ -114,8 +114,24 @@ export const router = createBrowserRouter([
     Component: TravailleurDashboard,
   },
   {
+    path: "/travailleur/parametres",
+    Component: ParametresPage,
+  },
+  {
+    path: "/travailleur/notifications",
+    Component: NotificationsPage,
+  },
+  {
     path: "/agent/immatriculation",
     Component: AgentImmatriculationDashboard,
+  },
+  {
+    path: "/agent/notifications",
+    Component: NotificationsPage,
+  },
+  {
+    path: "/agent/parametres",
+    Component: ParametresPage,
   },
   {
     path: "/agent/employeur",

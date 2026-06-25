@@ -41,6 +41,10 @@ class AgentSeeder extends Seeder
                 ]
             );
 
+            if ($this->command) {
+                $this->command->info("Agent créé: {$matricule} (type={$p['type']}) — mot de passe: password123");
+            }
+
             Agent::firstOrCreate(
                 ['user_id' => $user->id],
                 [

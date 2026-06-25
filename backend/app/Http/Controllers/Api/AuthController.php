@@ -72,72 +72,100 @@ class AuthController extends Controller
         ]);
     }
   public function register(Request $request)
-    {
-        $data = $request->validate([
-            'numero_cnss' => ['required', 'numeric', 'digits_between:8,12'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
-        ]);
+{
+    $data = $request->validate([
+        'numero_cnss' => ['required', 'string'],
+        'email'       => ['required', 'email', 'max:255', 'unique:users,email'],
+        'password'    => ['required', 'string', 'min:8'],
+    ]);
 
-        // Determine user type based on CNSS number length
-        $cnssLength = strlen($data['numero_cnss']);
-        
-        if ($cnssLength === 8) {
-            $role = 'employeur';
-        } else if ($cnssLength >= 10 && $cnssLength <= 12) {
-            $role = 'travailleur';
-        } else {
-            return response()->json([
-                'message' => 'Format de numéro CNSS invalide. Employeur: 8 chiffres, Travailleur/Agent: 10-12 chiffres'
-            ], 422);
-        }
+    $numeroCnss = trim($data['numero_cnss']);
 
-        try {
-            // Create user
-            $user = User::create([
-                'name' => $data['email'] ?? 'User',
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
-                'role' => $role,
-                'statut' => 'actif',
-            ]);
-
-            // Create corresponding profile entry
-            if ($role === 'employeur') {
-                Employeur::create([
-                    'user_id' => $user->id,
-                    'numero_cnss' => $data['numero_cnss'],
-                    'password' => Hash::make($data['password']),
-                    'ifu' => 'EN ATTENTE',
-                    'company_name' => $data['email'],
-                    'statut' => 'actif',
-                ]);
-            } else if ($role === 'travailleur') {
-                Travailleur::create([
-                    'user_id' => $user->id,
-                    'numero_cnss' => $data['numero_cnss'],
-                    'password' => Hash::make($data['password']),
-                    'first_name' => 'User',
-                    'last_name' => '',
-                    'statut' => 'actif',
-                ]);
-            }
-
-            $token = $user->createToken('api-token')->plainTextToken;
-
-            return response()->json([
-                'message' => 'Compte créé avec succès',
-                'user' => $this->serializeUser($user),
-                'token' => $token,
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Erreur lors de la création du compte',
-                'error' => $e->getMessage(),
-            ], 422);
-        }
+    // Vérifie que le numéro contient seulement des chiffres
+    if (!preg_match('/^[0-9]+$/', $numeroCnss)) {
+        return response()->json([
+            'message' => 'Le numéro CNSS doit contenir uniquement des chiffres.'
+        ], 422);
     }
 
+    $len = strlen($numeroCnss);
+
+    // EMPLOYEUR : 8 chiffres
+    if ($len === 8) {
+        // Vérifier qu'il n'existe pas déjà un employeur avec ce numéro
+        if (Employeur::where('numero_cnss', $numeroCnss)->exists()) {
+            return response()->json([
+                'message' => 'Un compte existe déjà pour ce numéro CNSS.'
+            ], 409);
+        }
+
+        $user = User::create([
+            'name'     => $data['email'],
+            'email'    => $data['email'],
+            'password' => Hash::make($data['password']),
+            'role'     => 'employeur',
+            'statut'   => 'actif',
+        ]);
+
+        Employeur::create([
+            'user_id'      => $user->id,
+            'numero_cnss'  => $numeroCnss,
+            'password'     => Hash::make($data['password']),
+            'ifu'          => 'EN ATTENTE',
+            'company_name' => $data['email'],
+            'email'        => $data['email'], // important
+            'statut'       => 'actif',
+        ]);
+
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Compte employeur créé avec succès.',
+            'user'    => $this->serializeUser($user),
+            'token'   => $token,
+        ], 201);
+    }
+
+    // TRAVAILLEUR : 10 à 12 chiffres
+    if ($len >= 10 && $len <= 12) {
+        // Vérifier qu'il n'existe pas déjà un travailleur avec ce numéro
+        if (Travailleur::where('numero_cnss', $numeroCnss)->exists()) {
+            return response()->json([
+                'message' => 'Un compte existe déjà pour ce numéro CNSS.'
+            ], 409);
+        }
+
+        $user = User::create([
+            'name'     => $data['email'],
+            'email'    => $data['email'],
+            'password' => Hash::make($data['password']),
+            'role'     => 'travailleur',
+            'statut'   => 'actif',
+        ]);
+
+        Travailleur::create([
+            'user_id'     => $user->id,
+            'numero_cnss' => $numeroCnss,
+            'password'    => Hash::make($data['password']),
+            'first_name'  => 'User',
+            'last_name'   => '',
+            'email'       => $data['email'] ?? null, // seulement si la colonne existe
+            'statut'      => 'actif',
+        ]);
+
+        $token = $user->createToken('api-token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Compte travailleur créé avec succès.',
+            'user'    => $this->serializeUser($user),
+            'token'   => $token,
+        ], 201);
+    }
+
+    return response()->json([
+        'message' => 'Format de numéro CNSS invalide. Employeur: 8 chiffres, Travailleur: 10-12 chiffres.'
+    ], 422);
+}
     public function logout(Request $request)
     {
         $request->user()?->currentAccessToken()?->delete();
@@ -152,37 +180,109 @@ class AuthController extends Controller
             'new_password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $user = $request->user();
+        $user = $request->user()->load('employeur', 'travailleur', 'agent');
 
-        if (!Hash::check($data['current_password'], $user->password)) {
+        if (! Hash::check($data['current_password'], $user->password)) {
             return response()->json([
                 'message' => 'Mot de passe actuel incorrect.',
             ], 422);
         }
 
-        // Update user password
+        // Le cast 'hashed' sur User hash automatiquement — ne pas pré-hasher
         $user->update([
-            'password' => Hash::make($data['new_password']),
+            'password' => $data['new_password'],
         ]);
 
-        // Also update password in specific table if it exists
+        $hashed = Hash::make($data['new_password']);
+
         if ($user->role === 'employeur' && $user->employeur) {
-            $user->employeur->update([
-                'password' => Hash::make($data['new_password']),
-            ]);
-        } else if ($user->role === 'travailleur' && $user->travailleur) {
-            $user->travailleur->update([
-                'password' => Hash::make($data['new_password']),
-            ]);
-        } else if ($user->role === 'agent' && $user->agent) {
-            $user->agent->update([
-                'password' => Hash::make($data['new_password']),
-            ]);
+            $user->employeur->update(['password' => $hashed]);
+        } elseif ($user->role === 'travailleur' && $user->travailleur) {
+            $user->travailleur->update(['password' => $hashed]);
+        } elseif (in_array($user->role, ['agent', 'admin'], true) && $user->agent) {
+            $user->agent->update(['password' => $hashed]);
         }
 
         return response()->json([
             'message' => 'Mot de passe changé avec succès.',
         ], 200);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user()->load('employeur', 'travailleur', 'agent');
+
+        $baseData = $request->validate([
+            'email' => ['sometimes', 'email', 'max:255', 'unique:users,email,' . $user->id],
+        ]);
+
+        if (isset($baseData['email'])) {
+            $user->update(['email' => $baseData['email']]);
+        }
+
+        switch ($user->role) {
+            case 'employeur':
+                if (! $user->employeur) {
+                    return response()->json(['message' => 'Profil employeur introuvable.'], 404);
+                }
+                $data = $request->validate([
+                    'company_name' => ['sometimes', 'string', 'max:255'],
+                    'phone'        => ['nullable', 'string', 'max:50'],
+                    'address'      => ['nullable', 'string', 'max:255'],
+                    'email'        => ['nullable', 'email', 'max:255'],
+                ]);
+                $user->employeur->update($data);
+                if (! empty($data['company_name'])) {
+                    $user->update(['name' => $data['company_name']]);
+                }
+                break;
+
+            case 'travailleur':
+                if (! $user->travailleur) {
+                    return response()->json(['message' => 'Profil travailleur introuvable.'], 404);
+                }
+                $data = $request->validate([
+                    'phone'   => ['nullable', 'string', 'max:50'],
+                    'email'   => ['nullable', 'email', 'max:255'],
+                    'adresse' => ['nullable', 'string', 'max:255'],
+                ]);
+                $user->travailleur->update($data);
+                break;
+
+            case 'agent':
+            case 'admin':
+                if ($user->agent) {
+                    $data = $request->validate([
+                        'phone' => ['nullable', 'string', 'max:50'],
+                        'email' => ['nullable', 'email', 'max:255'],
+                    ]);
+                    $user->agent->update($data);
+                }
+                break;
+        }
+
+        return response()->json([
+            'message' => 'Profil mis à jour avec succès.',
+            'user'    => $this->serializeUser($user->fresh()->load('employeur', 'travailleur', 'agent')),
+        ]);
+    }
+
+    public function updatePreferences(Request $request)
+    {
+        $data = $request->validate([
+            'email_notifications' => ['sometimes', 'boolean'],
+            'sms_notifications'   => ['sometimes', 'boolean'],
+            'push_notifications'  => ['sometimes', 'boolean'],
+        ]);
+
+        $user = $request->user();
+        $prefs = array_merge($user->preferences ?? [], $data);
+        $user->update(['preferences' => $prefs]);
+
+        return response()->json([
+            'message'     => 'Préférences enregistrées.',
+            'preferences' => $prefs,
+        ]);
     }
 
     public function user(Request $request)
@@ -214,19 +314,15 @@ private function serializeUser(User $user): array
 
 public function changerMotDePasse(Request $request)
 {
-    $data = $request->validate([
+    $request->validate([
         'current_password' => ['required', 'string'],
-        'new_password'      => ['required', 'string', 'min:8'],
+        'new_password'     => ['required', 'string', 'min:8'],
     ]);
 
-    $user = $request->user();
-
-    if (! \Illuminate\Support\Facades\Hash::check($data['current_password'], $user->password)) {
-        return response()->json(['message' => 'Mot de passe actuel incorrect.'], 422);
+    if (! $request->has('new_password_confirmation')) {
+        $request->merge(['new_password_confirmation' => $request->input('new_password')]);
     }
 
-    $user->update(['password' => $data['new_password']]);
-
-    return response()->json(['message' => 'Mot de passe modifié avec succès.']);
+    return $this->changePassword($request);
 }
 }
