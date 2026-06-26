@@ -1,14 +1,15 @@
 import { UserPlus, Mail, ArrowLeft, Lock, FileText, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { CNSSLogo } from './CNSSLogo';
-import { registerWithCnss } from '../api';
+import { activerCompteEmployeur, activerCompteTravailleur } from '../api';
 
 export function CreateAccountPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
-    numeroImmatriculation: '',
-    email: '',
+    numeroImmatriculation: searchParams.get('cnss') || '',
+    email: searchParams.get('email') || '',
     password: '',
     confirmPassword: '',
   });
@@ -16,6 +17,7 @@ export function CreateAccountPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isTravailleur = searchParams.get('type') === 'travailleur' || (formData.numeroImmatriculation.length > 8 && formData.numeroImmatriculation.length <= 12);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,11 +35,11 @@ export function CreateAccountPage() {
 
     setLoading(true);
     try {
-      const response = await registerWithCnss(
-        formData.numeroImmatriculation,
-        formData.email,
-        formData.password
-      );
+      const isEmployeurAccount =
+        searchParams.get('type') !== 'travailleur' && formData.numeroImmatriculation.length === 8;
+      const response = isEmployeurAccount
+        ? await activerCompteEmployeur(formData.numeroImmatriculation, formData.email, formData.password)
+        : await activerCompteTravailleur(formData.numeroImmatriculation, formData.email, formData.password);
       
       if (response.token && response.user) {
         localStorage.setItem('cnss_token', response.token);
@@ -86,10 +88,12 @@ export function CreateAccountPage() {
           </div>
 
           <h1 className="text-2xl font-bold text-gray-900 text-center mb-2">
-            Créer votre compte en ligne
+            {isTravailleur ? 'Créer votre compte travailleur' : 'Créer votre compte en ligne'}
           </h1>
           <p className="text-gray-600 text-center mb-8">
-            Utilisez votre numéro d'immatriculation CNSS pour créer votre compte
+            {isTravailleur
+              ? 'Utilisez votre numéro CNSS travailleur reçu par email pour accéder à votre espace'
+              : 'Utilisez votre numéro d\'immatriculation CNSS pour créer votre compte'}
           </p>
 
           {error && (
@@ -138,7 +142,9 @@ export function CreateAccountPage() {
                 />
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                Utilisez l'email que vous avez fourni lors de votre demande d'adhésion
+                {isTravailleur
+                  ? 'Utilisez l\'email que vous avez fourni lors de votre déclaration par l\'employeur'
+                  : 'Utilisez l\'email que vous avez fourni lors de votre demande d\'adhésion'}
               </p>
             </div>
 

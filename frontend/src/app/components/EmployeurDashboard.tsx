@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Users,
   FileText,
@@ -20,18 +20,21 @@ import {
   UserX,
   Info
 } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { CNSSLogo } from './CNSSLogo';
+import { useUser } from '../hooks/useUser';
+import { clearAuth, getTravailleursParEmployeur, getNotifications, downloadTravailleurAttestation } from '../api';
 
 interface Travailleur {
   id: number;
   nom: string;
   prenom: string;
   matricule: string;
-  statut: 'Actif' | 'Inactif';
+  statut: 'Actif' | 'Inactif' | 'En attente' | 'Rejetée';
   dateAffiliation: string;
   poste?: string;
   salaire?: number;
+  rawId?: number;
 }
 
 interface Declaration {
@@ -69,13 +72,36 @@ interface CotisationTravailleur {
   statut: 'Payée' | 'En attente' | 'En retard';
 }
 
-const travailleurs: Travailleur[] = [];
-
 const cotisationsParTravailleur: CotisationTravailleur[] = [];
 
 const declarations: Declaration[] = [];
 
+function mapTravailleurFromApi(t: any): Travailleur {
+  const statutMap: Record<string, Travailleur['statut']> = {
+    actif: 'Actif',
+    en_attente: 'En attente',
+    rejetee: 'Rejetée',
+  };
+  return {
+    id: t.id,
+    rawId: t.id,
+    nom: t.last_name ?? t.nom ?? '',
+    prenom: t.first_name ?? t.prenom ?? '',
+    matricule: t.numero_cnss ?? 'En attente',
+    statut: statutMap[t.statut] ?? 'Inactif',
+    dateAffiliation: t.created_at ? new Date(t.created_at).toLocaleDateString('fr-FR') : '—',
+    poste: t.position ?? t.poste,
+    salaire: t.salaire_brut ? Number(t.salaire_brut) : undefined,
+  };
+}
+
 export function EmployeurDashboard() {
+  const navigate = useNavigate();
+  const { user, loading, error } = useUser();
+
+  const [travailleurs, setTravailleurs] = useState<Travailleur[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [loadingTravailleurs, setLoadingTravailleurs] = useState(false);
   const [activeTab, setActiveTab] = useState<'apercu' | 'travailleurs' | 'declarations' | 'paiements' | 'historique'>('apercu');
   const [selectedTravailleur, setSelectedTravailleur] = useState<Travailleur | null>(null);
   const [selectedDeclaration, setSelectedDeclaration] = useState<Declaration | null>(null);
@@ -85,6 +111,63 @@ export function EmployeurDashboard() {
   const [travailleurADesactiver, setTravailleurADesactiver] = useState<Travailleur | null>(null);
   const [motifDesactivation, setMotifDesactivation] = useState('');
   const [fichierJustificatif, setFichierJustificatif] = useState<File | null>(null);
+
+  const employeurId = user?.profile?.id;
+
+  useEffect(() => {
+    if (!employeurId) return;
+    let mounted = true;
+    (async () => {
+      setLoadingTravailleurs(true);
+      try {
+        const data = await getTravailleursParEmployeur(employeurId);
+        if (mounted) setTravailleurs((data as any[]).map(mapTravailleurFromApi));
+      } catch (err) {
+        console.error('Erreur chargement travailleurs', err);
+      } finally {
+        if (mounted) setLoadingTravailleurs(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [employeurId]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await getNotifications();
+        if (mounted) {
+          setUnreadNotifications((data as any[]).filter(n => !n.read_at).length);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // Gérer la déconnexion
+  const handleLogout = () => {
+    clearAuth();
+    navigate('/');
+  };
+
+  if (error && !user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="bg-white p-8 rounded-lg shadow-lg text-center">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Erreur</h1>
+          <p className="text-gray-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Données de l'utilisateur (entreprise)
+  const companyName = user?.profile?.company_name || user?.email || 'Mon Entreprise';
+  const ifu = user?.profile?.ifu || 'À compléter';
+  const cnss = user?.profile?.numero_cnss || 'N/A';
 
   const renderContent = () => {
     switch (activeTab) {
@@ -125,7 +208,7 @@ export function EmployeurDashboard() {
                   </div>
                 </div>
                 <p className="text-gray-600 text-sm mb-1">En attente</p>
-                <p className="text-3xl font-bold text-gray-900">{declarations.filter(d => d.statut === 'En attente').length}</p>
+                <p className="text-3xl font-bold text-gray-900">{travailleurs.filter(t => t.statut === 'En attente').length}</p>
               </div>
 
               <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
@@ -472,16 +555,23 @@ export function EmployeurDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {travailleurs.map((travailleur) => (
+                    {loadingTravailleurs ? (
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Chargement...</td></tr>
+                    ) : travailleurs.length === 0 ? (
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Aucun travailleur déclaré. <Link to="/employeur/declarer-travailleur" className="text-blue-600 hover:underline">Déclarer un travailleur</Link></td></tr>
+                    ) : travailleurs.map((travailleur) => (
                       <tr key={travailleur.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-900">{travailleur.matricule}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 font-mono">{travailleur.matricule}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">{travailleur.nom}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">{travailleur.prenom}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{travailleur.poste}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{travailleur.dateAffiliation}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                            travailleur.statut === 'Actif' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                            travailleur.statut === 'Actif' ? 'bg-green-100 text-green-700' :
+                            travailleur.statut === 'En attente' ? 'bg-orange-100 text-orange-700' :
+                            travailleur.statut === 'Rejetée' ? 'bg-red-100 text-red-700' :
+                            'bg-gray-100 text-gray-700'
                           }`}>
                             {travailleur.statut}
                           </span>
@@ -494,6 +584,15 @@ export function EmployeurDashboard() {
                             >
                               Voir détails
                             </button>
+                            {travailleur.statut === 'Actif' && travailleur.rawId && (
+                              <button
+                                onClick={() => downloadTravailleurAttestation(travailleur.rawId!)}
+                                className="text-green-600 hover:text-green-700 hover:underline text-sm font-semibold transition-all flex items-center gap-1"
+                              >
+                                <Download className="w-3 h-3" />
+                                Attestation
+                              </button>
+                            )}
                             {travailleur.statut === 'Actif' && (
                               <button
                                 onClick={() => {
@@ -1127,13 +1226,13 @@ export function EmployeurDashboard() {
             <Settings className="w-5 h-5" />
             <span className="font-medium">Paramètres</span>
           </Link>
-          <Link
-            to="/"
-            className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
           >
             <LogOut className="w-5 h-5" />
             <span className="font-medium">Déconnexion</span>
-          </Link>
+          </button>
         </div>
       </aside>
 
@@ -1142,15 +1241,19 @@ export function EmployeurDashboard() {
         <header className="bg-white border-b border-gray-200 px-8 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Entreprise ABC SARL</h1>
-              <p className="text-sm text-gray-600">IFU: 123456789</p>
+              <h1 className="text-xl font-bold text-gray-900">{companyName}</h1>
+              <p className="text-sm text-gray-600">IFU: {ifu} • CNSS: {cnss}</p>
             </div>
             <Link
               to="/employeur/notifications"
               className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
             >
               <Bell className="w-6 h-6" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              {unreadNotifications > 0 && (
+                <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </span>
+              )}
             </Link>
           </div>
         </header>

@@ -24,13 +24,15 @@ export function LoginPage() {
       // Decide navigation based on role / payload
       const role = (resp.user as any).role || (resp.user as any).user?.role;
       if (role === 'agent') {
-        const agentType = (resp.user as any).agent_type;
+        // Prefer agent.type from the nested `agent` relation; fall back to legacy `agent_type`.
+        const userAny = resp.user as any;
+        const agentType = userAny?.agent?.type ?? userAny?.agent_type;
         if (agentType === 'immatriculation') navigate('/agent/immatriculation');
         else if (agentType === 'employeur') navigate('/agent/employeur');
         else if (agentType === 'cotisation') navigate('/agent/cotisation');
         else if (agentType === 'prestations') navigate('/agent/prestations');
         else if (agentType === 'support') navigate('/agent/support');
-        else navigate('/agent');
+        else navigate('/agent/immatriculation'); // safe default (avoid /agent 404)
         return;
       }
 

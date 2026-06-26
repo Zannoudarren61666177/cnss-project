@@ -4,7 +4,9 @@ import {
 } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { submitDemandeAdhesion } from '../api';
 import { CNSSLogo } from './CNSSLogo';
+import { SubmissionModal } from './SubmissionModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -258,9 +260,44 @@ export function SignupPage() {
     ? Math.round((Object.keys(files).length / requiredPieces.length) * 100)
     : 0;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Votre demande d'adhésion a été soumise avec succès ! Vous recevrez votre numéro d'immatriculation par email après validation par un agent CNSS.");
+
+    // Build FormData to match backend expectations
+    const fd = new FormData();
+    fd.append('type_employeur', selectedType?.id || '');
+    fd.append('company_name', formData.nomEntreprise);
+    fd.append('ifu', formData.ifu || '');
+    fd.append('address', formData.adresseEntreprise);
+    fd.append('phone', formData.telephoneEntreprise);
+    fd.append('email', formData.email);
+    fd.append('nom_representant', formData.nom);
+    fd.append('prenom_representant', formData.prenom);
+    fd.append('npi_representant', formData.npi);
+    fd.append('telephone_representant', formData.telephoneRepresentant);
+
+    // Attach files using their piece ids as keys
+    Object.entries(files).forEach(([key, file]) => {
+      if (file) fd.append(key, file as File);
+    });
+
+    try {
+      setSubmitting(true);
+      await submitDemandeAdhesion(fd);
+      setShowModal(true);
+    } catch (err: any) {
+      alert(err?.message || 'Erreur lors de la soumission de la demande');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const [submitting, setSubmitting] = useState(false);
+
+  const [showModal, setShowModal] = useState(false);
+
+  const onModalClose = () => {
+    setShowModal(false);
     navigate('/');
   };
 
@@ -578,6 +615,11 @@ export function SignupPage() {
           </Link>
         </div>
       </div>
+      <SubmissionModal
+        open={showModal}
+        message={"Votre demande d'adhésion a été soumise avec succès ! Vous recevrez votre numéro d'immatriculation par email après validation par un agent CNSS."}
+        onClose={onModalClose}
+      />
     </div>
   );
 }

@@ -4,6 +4,8 @@ async function apiFetch(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('cnss_token');
 
   const defaultHeaders: Record<string, string> = {};
+  // Always request JSON to make sure API returns JSON errors (avoid HTML redirects)
+  defaultHeaders['Accept'] = 'application/json';
   if (options.body && !(options.body instanceof FormData)) {
     defaultHeaders['Content-Type'] = 'application/json';
   }
@@ -90,11 +92,29 @@ export async function logout(): Promise<void> {
 export async function changePassword(currentPassword: string, newPassword: string, newPasswordConfirmation: string): Promise<{ message: string }> {
   return apiFetch('/auth/change-password', {
     method: 'POST',
-    body: JSON.stringify({ 
-      current_password: currentPassword, 
+    body: JSON.stringify({
+      current_password: currentPassword,
       new_password: newPassword,
       new_password_confirmation: newPasswordConfirmation,
     }),
+  });
+}
+
+export async function updateProfile(data: Record<string, unknown>): Promise<{ message: string; user: Record<string, unknown> }> {
+  return apiFetch('/auth/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updatePreferences(data: {
+  email_notifications?: boolean;
+  sms_notifications?: boolean;
+  push_notifications?: boolean;
+}): Promise<{ message: string; preferences: Record<string, boolean> }> {
+  return apiFetch('/auth/preferences', {
+    method: 'PUT',
+    body: JSON.stringify(data),
   });
 }
 
@@ -118,17 +138,37 @@ export async function getPrestationsPubliques(): Promise<any[]> {
   return apiFetch('/prestations/publiques');
 }
 
+// Soumettre une demande d'adhésion employeur (form-data avec pièces)
+export async function submitDemandeAdhesion(formData: FormData): Promise<any> {
+  return apiFetch('/employeurs/demander-adhesion', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
 // ─── Employeurs ───────────────────────────────────────────────────────────────
 export async function getEmployeurs(): Promise<any[]> {
   return apiFetch('/employeurs');
+}
+
+export async function getEmployeur(id: number | string): Promise<any> {
+  return apiFetch(`/employeurs/${id}`);
+}
+
+export async function updateEmployeur(id: number | string, data: Record<string, any>): Promise<any> {
+  return apiFetch(`/employeurs/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
 }
 
 export async function validerEmployeur(id: number): Promise<any> {
   return apiFetch(`/employeurs/${id}/valider`, { method: 'POST' });
 }
 
-export async function rejeterEmployeur(id: number): Promise<any> {
-  return apiFetch(`/employeurs/${id}/rejeter`, { method: 'POST' });
+export async function rejeterEmployeur(id: number, raison?: string): Promise<any> {
+  const body = raison ? JSON.stringify({ raison }) : undefined;
+  return apiFetch(`/employeurs/${id}/rejeter`, { method: 'POST', body });
 }
 
 // ─── Travailleurs ─────────────────────────────────────────────────────────────
@@ -144,7 +184,7 @@ export async function createTravailleur(data: Record<string, any>, file?: File |
   const formData = new FormData();
   Object.entries(data).forEach(([key, value]) => {
     if (value !== null && value !== undefined && value !== '') {
-      formData.append(key, value);
+      formData.append(key, String(value));
     }
   });
   if (file) {
@@ -155,6 +195,103 @@ export async function createTravailleur(data: Record<string, any>, file?: File |
     method: 'POST',
     body: formData,
   });
+}
+
+export async function getTravailleursEnAttente(): Promise<any[]> {
+  return apiFetch('/travailleurs/en-attente');
+}
+
+export async function validerTravailleur(id: number | string): Promise<any> {
+  return apiFetch(`/travailleurs/${id}/valider`, { method: 'POST' });
+}
+
+export async function rejeterTravailleur(id: number | string, raison: string): Promise<any> {
+  return apiFetch(`/travailleurs/${id}/rejeter`, {
+    method: 'POST',
+    body: JSON.stringify({ raison }),
+  });
+}
+
+export async function renvoyerAttestationTravailleur(id: number | string): Promise<any> {
+  return apiFetch(`/travailleurs/${id}/renvoyer-attestation`, { method: 'POST' });
+}
+
+export async function activerCompteTravailleur(numeroCnss: string, email: string, password: string): Promise<any> {
+  return apiFetch('/travailleurs/activer-compte', {
+    method: 'POST',
+    body: JSON.stringify({ numero_cnss: numeroCnss, email, password }),
+  });
+}
+
+export async function getTravailleurProfil(): Promise<{ travailleur: Record<string, any>; employeur: Record<string, any> | null }> {
+  return apiFetch('/travailleur/profil');
+}
+
+export async function getTravailleurCotisations(): Promise<any[]> {
+  return apiFetch('/travailleur/cotisations');
+}
+
+export async function getTravailleurDroits(): Promise<{
+  mois_cotises: number;
+  date_affiliation: string;
+  droits: Array<{
+    nom: string;
+    description: string;
+    eligible: boolean;
+    condition: string;
+    mois_cotises: number;
+    mois_requis: number;
+  }>;
+}> {
+  return apiFetch('/travailleur/droits');
+}
+
+export async function downloadMonAttestationTravailleur(): Promise<void> {
+  const token = localStorage.getItem('cnss_token');
+  const base = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api/v1';
+  const response = await fetch(`${base}/travailleur/attestation`, {
+    headers: {
+      Accept: 'application/pdf',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || 'Erreur lors du téléchargement');
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'attestation-cnss-travailleur.pdf';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function downloadTravailleurAttestation(id: number | string): Promise<void> {
+  const token = localStorage.getItem('cnss_token');
+  const base = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api/v1';
+  const response = await fetch(`${base}/travailleurs/${id}/attestation`, {
+    headers: {
+      Accept: 'application/pdf',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || 'Erreur lors du téléchargement');
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `attestation-travailleur-${id}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 // ─── Cotisations ──────────────────────────────────────────────────────────────
@@ -198,6 +335,18 @@ export async function updateAgentRole(id: number, role: string): Promise<any> {
 // ─── Notifications ────────────────────────────────────────────────────────────
 export async function getNotifications(): Promise<any[]> {
   return apiFetch('/notifications');
+}
+
+export async function markNotificationRead(id: number | string): Promise<any> {
+  return apiFetch(`/notifications/${id}/marquer-lue`, { method: 'POST' });
+}
+
+export async function markAllNotificationsRead(): Promise<any> {
+  return apiFetch('/notifications/marquer-toutes-lues', { method: 'POST' });
+}
+
+export async function deleteNotification(id: number | string): Promise<any> {
+  return apiFetch(`/notifications/${id}`, { method: 'DELETE' });
 }
 
 // ─── FAQ ──────────────────────────────────────────────────────────────────────

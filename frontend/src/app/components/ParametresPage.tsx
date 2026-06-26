@@ -1,19 +1,28 @@
 import { ArrowLeft, User, Lock, Bell, Globe, Mail, Phone, Building, CreditCard, Download, Save, AlertCircle, CheckCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
+import { useUser } from '../hooks/useUser';
+import { updateProfile, updatePreferences, getUser, storeUser } from '../api';
 import { CNSSLogo } from './CNSSLogo';
 import { changePassword } from '../api';
+
+async function refreshStoredUser(refetch?: () => Promise<void>) {
+  const fresh = await getUser();
+  storeUser(fresh as Record<string, unknown>);
+  window.dispatchEvent(new Event('cnss:user-updated'));
+  if (refetch) await refetch();
+}
 
 export function ParametresPage() {
   const [activeSection, setActiveSection] = useState<'profil' | 'securite' | 'notifications' | 'entreprise'>('profil');
   const [formData, setFormData] = useState({
-    nom: 'ABC SARL',
-    email: 'contact@abc-sarl.com',
-    telephone: '+229 XX XX XX XX',
-    adresse: 'Cotonou, Bénin',
-    ifu: '123456789',
-    registreCommerce: 'RC/COT/2020/B/1234',
-    secteurActivite: 'Commerce',
+    nom: '',
+    email: '',
+    telephone: '',
+    adresse: '',
+    ifu: '',
+    registreCommerce: '',
+    secteurActivite: '',
     emailNotifications: true,
     smsNotifications: false,
     pushNotifications: true,
@@ -25,6 +34,12 @@ export function ParametresPage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [profilLoading, setProfilLoading] = useState(false);
+  const [profilError, setProfilError] = useState<string | null>(null);
+  const [profilSuccess, setProfilSuccess] = useState(false);
+  const [prefsLoading, setPrefsLoading] = useState(false);
+  const [prefsError, setPrefsError] = useState<string | null>(null);
+  const [prefsSuccess, setPrefsSuccess] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -32,6 +47,123 @@ export function ParametresPage() {
       ...formData,
       [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     });
+  };
+
+  // Load user/employeur data
+  const { user, refetch } = useUser();
+
+  // Initialize form values from user profile when available
+  useEffect(() => {
+    if (!user) return;
+    const profile = user.profile as Record<string, unknown> | undefined;
+    const prefs = (user.preferences ?? {}) as Record<string, boolean>;
+
+    if (user.role === 'travailleur' && profile) {
+      setFormData(prev => ({
+        ...prev,
+        nom: `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim(),
+        email: (profile.email as string) ?? user.email ?? prev.email,
+        telephone: (profile.phone as string) ?? prev.telephone,
+        adresse: (profile.adresse as string) ?? (profile.ville as string) ?? prev.adresse,
+        emailNotifications: prefs.email_notifications ?? prev.emailNotifications,
+        smsNotifications: prefs.sms_notifications ?? prev.smsNotifications,
+        pushNotifications: prefs.push_notifications ?? prev.pushNotifications,
+      }));
+    } else if (user.role === 'agent' || user.role === 'admin') {
+      setFormData(prev => ({
+        ...prev,
+        email: (profile?.email as string) ?? user.email ?? prev.email,
+        telephone: (profile?.phone as string) ?? prev.telephone,
+        emailNotifications: prefs.email_notifications ?? prev.emailNotifications,
+        smsNotifications: prefs.sms_notifications ?? prev.smsNotifications,
+        pushNotifications: prefs.push_notifications ?? prev.pushNotifications,
+      }));
+    } else if (profile) {
+      setFormData(prev => ({
+        ...prev,
+        nom: (profile.company_name as string) ?? prev.nom,
+        ifu: (profile.ifu as string) ?? prev.ifu,
+        email: (profile.email as string) ?? user.email ?? prev.email,
+        telephone: (profile.phone as string) ?? prev.telephone,
+        adresse: (profile.address as string) ?? prev.adresse,
+        secteurActivite: (profile.secteur as string) ?? prev.secteurActivite,
+        emailNotifications: prefs.email_notifications ?? prev.emailNotifications,
+        smsNotifications: prefs.sms_notifications ?? prev.smsNotifications,
+        pushNotifications: prefs.push_notifications ?? prev.pushNotifications,
+      }));
+    }
+  }, [user]);
+
+  const handleSaveProfil = async () => {
+    if (!user) return;
+    setProfilLoading(true);
+    setProfilError(null);
+    setProfilSuccess(false);
+
+    try {
+      let payload: Record<string, unknown> = {
+        email: formData.email,
+        phone: formData.telephone,
+      };
+
+      if (user.role === 'employeur') {
+        payload.address = formData.adresse;
+      } else if (user.role === 'travailleur') {
+        payload.adresse = formData.adresse;
+      }
+
+      const res = await updateProfile(payload);
+      storeUser(res.user as Record<string, unknown>);
+      window.dispatchEvent(new Event('cnss:user-updated'));
+      if (refetch) await refetch();
+      setProfilSuccess(true);
+      setTimeout(() => setProfilSuccess(false), 5000);
+    } catch (err: unknown) {
+      setProfilError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour');
+    } finally {
+      setProfilLoading(false);
+    }
+  };
+
+  const handleSaveEntreprise = async () => {
+    if (!user || user.role !== 'employeur') return;
+    setProfilLoading(true);
+    setProfilError(null);
+    setProfilSuccess(false);
+
+    try {
+      const res = await updateProfile({ company_name: formData.nom });
+      storeUser(res.user as Record<string, unknown>);
+      window.dispatchEvent(new Event('cnss:user-updated'));
+      if (refetch) await refetch();
+      setProfilSuccess(true);
+      setTimeout(() => setProfilSuccess(false), 5000);
+    } catch (err: unknown) {
+      setProfilError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour');
+    } finally {
+      setProfilLoading(false);
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    setPrefsLoading(true);
+    setPrefsError(null);
+    setPrefsSuccess(false);
+
+    try {
+      await updatePreferences({
+        email_notifications: formData.emailNotifications,
+        sms_notifications: formData.smsNotifications,
+        push_notifications: formData.pushNotifications,
+      });
+      await refreshStoredUser(refetch);
+      setPrefsSuccess(true);
+      setTimeout(() => setPrefsSuccess(false), 5000);
+    } catch (err: unknown) {
+      setPrefsError(err instanceof Error ? err.message : 'Erreur lors de l\'enregistrement');
+    } finally {
+      setPrefsLoading(false);
+    }
   };
 
   const handleSubmitPassword = async (e: React.FormEvent) => {
@@ -59,9 +191,10 @@ export function ParametresPage() {
         newPassword: '',
         confirmPassword: '',
       });
+      await refreshStoredUser(refetch);
       setTimeout(() => setPasswordSuccess(false), 5000);
-    } catch (err: any) {
-      setPasswordError(err.message || 'Erreur lors du changement de mot de passe');
+    } catch (err: unknown) {
+      setPasswordError(err instanceof Error ? err.message : 'Erreur lors du changement de mot de passe');
     } finally {
       setPasswordLoading(false);
     }
@@ -74,12 +207,34 @@ export function ParametresPage() {
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Informations du profil</h2>
-              <p className="text-gray-600">Gérez les informations de votre compte employeur</p>
+              <p className="text-gray-600">
+                {user?.role === 'travailleur'
+                  ? 'Gérez les informations de votre compte travailleur'
+                  : user?.role === 'agent' || user?.role === 'admin'
+                    ? 'Gérez les informations de votre compte agent CNSS'
+                    : 'Gérez les informations de votre compte employeur'}
+              </p>
             </div>
 
             <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-4">Informations de contact</h3>
               <div className="space-y-4">
+                {(user?.role === 'travailleur') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Nom complet</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        name="nom"
+                        value={formData.nom}
+                        disabled
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Modifiable uniquement via votre employeur ou la CNSS</p>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Adresse email
@@ -129,9 +284,36 @@ export function ParametresPage() {
                 </div>
               </div>
 
-              <button className="mt-6 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
-                <Save className="w-5 h-5" />
-                Enregistrer les modifications
+              {profilError && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700">{profilError}</p>
+                </div>
+              )}
+
+              {profilSuccess && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg flex gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-700">Profil mis à jour avec succès</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleSaveProfil}
+                disabled={profilLoading}
+                className="mt-6 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors font-semibold"
+              >
+                {profilLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Enregistrement...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Enregistrer les modifications
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -308,9 +490,36 @@ export function ParametresPage() {
                 </div>
               </div>
 
-              <button className="mt-6 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
-                <Save className="w-5 h-5" />
-                Enregistrer les préférences
+              {prefsError && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700">{prefsError}</p>
+                </div>
+              )}
+
+              {prefsSuccess && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg flex gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-green-700">Préférences enregistrées avec succès</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleSavePreferences}
+                disabled={prefsLoading}
+                className="mt-6 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors font-semibold"
+              >
+                {prefsLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Enregistrement...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Enregistrer les préférences
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -405,9 +614,22 @@ export function ParametresPage() {
                 </p>
               </div>
 
-              <button className="mt-6 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
-                <Save className="w-5 h-5" />
-                Enregistrer les modifications
+              <button
+                onClick={handleSaveEntreprise}
+                disabled={profilLoading}
+                className="mt-6 flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors font-semibold"
+              >
+                {profilLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Enregistrement...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Enregistrer les modifications
+                  </>
+                )}
               </button>
             </div>
 
@@ -447,13 +669,24 @@ export function ParametresPage() {
       <header className="bg-white border-b border-gray-200 px-8 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link
-              to="/employeur/tableau-de-bord"
-              className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Retour au tableau de bord
-            </Link>
+            {(() => {
+              const dashboardRoute = user
+                ? (user.role === 'agent'
+                  ? '/agent/immatriculation'
+                  : user.role === 'travailleur'
+                    ? '/travailleur/tableau-de-bord'
+                    : '/employeur/tableau-de-bord')
+                : '/';
+              return (
+                <Link
+                  to={dashboardRoute}
+                  className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                  Retour au tableau de bord
+                </Link>
+              );
+            })()}
           </div>
           <CNSSLogo size="medium" />
         </div>
@@ -492,15 +725,17 @@ export function ParametresPage() {
                   <Bell className="w-5 h-5" />
                   <span className="font-medium">Notifications</span>
                 </button>
-                <button
-                  onClick={() => setActiveSection('entreprise')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    activeSection === 'entreprise' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <Building className="w-5 h-5" />
-                  <span className="font-medium">Entreprise</span>
-                </button>
+                {user && user.role === 'employeur' && (
+                  <button
+                    onClick={() => setActiveSection('entreprise')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      activeSection === 'entreprise' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Building className="w-5 h-5" />
+                    <span className="font-medium">Entreprise</span>
+                  </button>
+                )}
               </nav>
             </div>
           </aside>

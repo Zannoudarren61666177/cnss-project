@@ -12,9 +12,15 @@ class Employeur extends Model
         'user_id', 'company_name', 'siret',
         'address', 'phone', 'email',
         'statut', 'numero_cnss', 'secteur', 'forme_juridique', 'password',
+        'pieces_justificatives',
+        'raison_rejet',
     ];
 
     protected $appends = ['raison_sociale', 'adresse', 'telephone', 'nb_travailleurs'];
+
+    protected $casts = [
+        'pieces_justificatives' => 'array',
+    ];
 
     public function user()
     {
