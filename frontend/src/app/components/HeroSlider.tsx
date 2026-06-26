@@ -5,34 +5,37 @@ import { Link } from 'react-router';
 const slides = [
   {
     id: 1,
-    title: 'République du Bénin',
-    subtitle: 'Caisse Nationale de Sécurité Sociale',
-    description: 'Votre protection sociale pour un avenir serein',
-    image: 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=1200&h=600&fit=crop',
+    title: "République du Bénin",
+    subtitle: "Caisse Nationale de Sécurité Sociale",
+    description: "Votre protection sociale pour un avenir serein",
+    image: "https://i.postimg.cc/gkwf38MN/cnss-siege.jpg",
     icon: Shield,
   },
   {
     id: 2,
-    title: 'Services en ligne',
-    subtitle: 'Déclarez vos travailleurs en ligne',
-    description: 'Simplifiez vos démarches administratives avec notre plateforme digitale',
-    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&h=600&fit=crop',
+    title: "Services en ligne",
+    subtitle: "Déclarez vos travailleurs en ligne",
+    description:
+      "Simplifiez vos démarches administratives avec notre plateforme digitale",
+    image: "",
     icon: Smartphone,
   },
   {
     id: 3,
-    title: 'Prestations sociales',
-    subtitle: 'Une couverture complète',
-    description: 'Bénéficiez d\'une couverture complète pour vous et votre famille',
-    image: 'https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?w=1200&h=600&fit=crop',
+    title: "Prestations sociales",
+    subtitle: "Une couverture complète",
+    description:
+      "Bénéficiez d'une couverture complète pour vous et votre famille",
+    image: "https://i.postimg.cc/K8pn0tKX/family.png",
     icon: Award,
   },
   {
     id: 4,
-    title: 'Accompagnement',
-    subtitle: 'Service client de qualité',
-    description: 'Nos équipes vous accompagnent dans toutes vos démarches',
-    image: 'https://images.unsplash.com/photo-1556761175-b413da4baf72?w=1200&h=600&fit=crop',
+    title: "Accompagnement",
+    subtitle: "Service client de qualité",
+    description: "Nos équipes vous accompagnent dans toutes vos démarches",
+    image:
+      "https://i.postimg.cc/mDZM4yt2/Capture-d-ecran-2026-06-26-144157.png",
     icon: Users,
   },
 ];

@@ -3,7 +3,7 @@ import { Header } from './Header';
 import { Footer } from './Footer';
 import { PublicLayout } from './PublicLayout';
 import { User, History, Users2, TrendingUp, Award, MapPin, Phone, Mail, Network, Shield, Heart, Briefcase } from 'lucide-react';
-import dgPhoto from '../../imports/DG_TCHINTCHIN_2.jpg';
+
 
 export function PresentationPage() {
   const [activeSection, setActiveSection] = useState<'dg' | 'historique' | 'directeurs' | 'organigramme'>('dg');
@@ -46,11 +46,18 @@ export function PresentationPage() {
             {/* En-tête style journal */}
             <div className="border-b-4 border-[#4A90E2] mb-12 pb-6">
               <div className="text-center">
-                <p className="text-sm uppercase tracking-widest text-gray-500 mb-2">CNSS Bénin — Direction Générale</p>
-                <h1 className="text-5xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Georgia, serif' }}>
+                <p className="text-sm uppercase tracking-widest text-gray-500 mb-2">
+                  CNSS Bénin — Direction Générale
+                </p>
+                <h1
+                  className="text-5xl font-bold text-gray-900 mb-2"
+                  style={{ fontFamily: "Georgia, serif" }}
+                >
                   Le Directeur Général
                 </h1>
-                <p className="text-gray-600 italic">Apollinaire CADETE TCHINTCHIN</p>
+                <p className="text-gray-600 italic">
+                  Apollinaire CADETE TCHINTCHIN
+                </p>
               </div>
             </div>
 
@@ -58,11 +65,11 @@ export function PresentationPage() {
             <div className="grid lg:grid-cols-3 gap-8">
               {/* Colonne gauche - Photo et infos */}
               <div className="lg:col-span-1">
-                <div className="bg-white border-2 border-gray-200 p-6">
+                <div className="bg-white border-2 p-6">
                   <img
-                    src={dgPhoto}
+                    src="https://i.postimg.cc/KjhXcC81/Apollinaire-Tchitchin.png"
                     alt="Apollinaire CADETE TCHINTCHIN"
-                    className="w-full"
+                    className=" h-full"
                   />
                 </div>
               </div>
@@ -72,28 +79,50 @@ export function PresentationPage() {
                 {/* Mot du DG */}
                 <div className="bg-white border-2 border-gray-200 p-8">
                   <div className="border-b-2 border-gray-900 pb-3 mb-6">
-                    <h2 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+                    <h2
+                      className="text-3xl font-bold text-gray-900"
+                      style={{ fontFamily: "Georgia, serif" }}
+                    >
                       Mot du Directeur Général
                     </h2>
                   </div>
 
-                  <div className="prose prose-lg max-w-none" style={{ fontFamily: 'Georgia, serif' }}>
+                  <div
+                    className="prose prose-lg max-w-none"
+                    style={{ fontFamily: "Georgia, serif" }}
+                  >
                     <p className="text-xl italic text-gray-700 mb-6 border-l-4 border-[#4A90E2] pl-6 py-2">
-                      "Chers employeurs, assurés, employés et partenaires de la CNSS,"
+                      "Chers employeurs, assurés, employés et partenaires de la
+                      CNSS,"
                     </p>
-                    
+
                     <p className="text-gray-800 leading-relaxed mb-4 text-justify">
-                      <span className="text-6xl font-bold text-[#4A90E2] float-left mr-3 mt-1 leading-none">C</span>
-                      'est avec un grand honneur que je m'adresse à vous en tant que Directeur Général de la Caisse Nationale de Sécurité Sociale du Bénin. Notre mission est noble : garantir la protection sociale de tous les travailleurs béninois et leurs familles.
+                      <span className="text-6xl font-bold text-[#4A90E2] float-left mr-3 mt-1 leading-none">
+                        C
+                      </span>
+                      'est avec un grand honneur que je m'adresse à vous en tant
+                      que Directeur Général de la Caisse Nationale de Sécurité
+                      Sociale du Bénin. Notre mission est noble : garantir la
+                      protection sociale de tous les travailleurs béninois et
+                      leurs familles.
                     </p>
-                    
+
                     <p className="text-gray-800 leading-relaxed mb-4 text-justify">
-                      Dans un monde en constante évolution, nous nous engageons à moderniser nos services, à digitaliser nos processus et à améliorer continuellement l'expérience de nos affiliés. La transformation numérique que nous menons vise à vous offrir des services plus rapides, plus accessibles et plus transparents.
+                      Dans un monde en constante évolution, nous nous engageons
+                      à moderniser nos services, à digitaliser nos processus et
+                      à améliorer continuellement l'expérience de nos affiliés.
+                      La transformation numérique que nous menons vise à vous
+                      offrir des services plus rapides, plus accessibles et plus
+                      transparents.
                     </p>
-                    
+
                     <div className="bg-[#4A90E2] text-white p-6 my-6">
-                      <p className="text-xl font-semibold text-center" style={{ fontFamily: 'Georgia, serif' }}>
-                        "Ensemble, construisons un système de sécurité sociale fort, inclusif et durable pour le Bénin."
+                      <p
+                        className="text-xl font-semibold text-center"
+                        style={{ fontFamily: "Georgia, serif" }}
+                      >
+                        "Ensemble, construisons un système de sécurité sociale
+                        fort, inclusif et durable pour le Bénin."
                       </p>
                     </div>
                   </div>
@@ -102,14 +131,23 @@ export function PresentationPage() {
                 {/* Biographie */}
                 <div className="bg-white border-2 border-gray-200 p-8">
                   <div className="border-b-2 border-gray-900 pb-3 mb-6">
-                    <h2 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Georgia, serif' }}>
+                    <h2
+                      className="text-3xl font-bold text-gray-900"
+                      style={{ fontFamily: "Georgia, serif" }}
+                    >
                       Biographie
                     </h2>
                   </div>
 
-                  <div className="space-y-6" style={{ fontFamily: 'Georgia, serif' }}>
+                  <div
+                    className="space-y-6"
+                    style={{ fontFamily: "Georgia, serif" }}
+                  >
                     <p className="text-gray-800 leading-relaxed text-justify">
-                      Apollinaire CADETE TCHINTCHIN a été nommé Directeur Général de la Caisse Nationale de Sécurité Sociale (CNSS) du Bénin le 7 juin 2019. Juriste de formation, il est titulaire d'un DESS en Droit des Affaires et Fiscalités.
+                      Apollinaire CADETE TCHINTCHIN a été nommé Directeur
+                      Général de la Caisse Nationale de Sécurité Sociale (CNSS)
+                      du Bénin le 7 juin 2019. Juriste de formation, il est
+                      titulaire d'un DESS en Droit des Affaires et Fiscalités.
                     </p>
 
                     <div className="bg-gray-50 p-6 border-l-4 border-[#4A90E2]">
@@ -117,7 +155,13 @@ export function PresentationPage() {
                         Parcours à la CNSS
                       </h3>
                       <p className="text-gray-800 leading-relaxed text-justify">
-                        Avant sa nomination à la tête de l'institution, M. TCHINTCHIN a occupé plusieurs postes de responsabilité au sein de la CNSS : Directeur des Prestations, Attaché du Directeur Général, et Chef de la Cellule des Affaires Juridiques. Cette expérience approfondie lui confère une connaissance complète des mécanismes de la sécurité sociale au Bénin.
+                        Avant sa nomination à la tête de l'institution, M.
+                        TCHINTCHIN a occupé plusieurs postes de responsabilité
+                        au sein de la CNSS : Directeur des Prestations, Attaché
+                        du Directeur Général, et Chef de la Cellule des Affaires
+                        Juridiques. Cette expérience approfondie lui confère une
+                        connaissance complète des mécanismes de la sécurité
+                        sociale au Bénin.
                       </p>
                     </div>
 
@@ -126,7 +170,12 @@ export function PresentationPage() {
                         Vision et Réalisations
                       </h3>
                       <p className="text-gray-800 leading-relaxed text-justify">
-                        Sous sa direction, la CNSS a entrepris une transformation digitale majeure visant à améliorer l'accès aux services et la qualité des prestations offertes aux affiliés. Il a également mis en place une politique de transparence et de bonne gouvernance qui a renforcé la confiance des partenaires sociaux.
+                        Sous sa direction, la CNSS a entrepris une
+                        transformation digitale majeure visant à améliorer
+                        l'accès aux services et la qualité des prestations
+                        offertes aux affiliés. Il a également mis en place une
+                        politique de transparence et de bonne gouvernance qui a
+                        renforcé la confiance des partenaires sociaux.
                       </p>
                     </div>
 
@@ -135,7 +184,13 @@ export function PresentationPage() {
                         Engagements et Priorités
                       </h3>
                       <p className="text-gray-800 leading-relaxed text-justify">
-                        Ses priorités incluent l'extension de la couverture sociale, l'amélioration de la qualité des services, la modernisation des infrastructures et le renforcement des capacités du personnel. Il œuvre également pour une meilleure collaboration avec les partenaires techniques et financiers afin d'assurer la pérennité du système de sécurité sociale au Bénin.
+                        Ses priorités incluent l'extension de la couverture
+                        sociale, l'amélioration de la qualité des services, la
+                        modernisation des infrastructures et le renforcement des
+                        capacités du personnel. Il œuvre également pour une
+                        meilleure collaboration avec les partenaires techniques
+                        et financiers afin d'assurer la pérennité du système de
+                        sécurité sociale au Bénin.
                       </p>
                     </div>
                   </div>
@@ -389,71 +444,108 @@ export function PresentationPage() {
             {/* En-tête */}
             <div className="text-center max-w-3xl mx-auto">
               <div className="inline-block px-4 py-2 bg-blue-100 rounded-full mb-4">
-                <span className="text-blue-600 font-semibold">Notre équipe de direction</span>
+                <span className="text-blue-600 font-semibold">
+                  Notre équipe de direction
+                </span>
               </div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-6">Les Directeurs Techniques</h1>
+              <h1 className="text-4xl font-bold text-gray-900 mb-6">
+                Les Directeurs Techniques
+              </h1>
               <p className="text-lg text-gray-600">
-                Une équipe d'experts dédiés à la modernisation et l'excellence des services de la CNSS
+                Une équipe d'experts dédiés à la modernisation et l'excellence
+                des services de la CNSS
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               {[
                 {
-                  nom: 'Marie KOUDOU',
-                  poste: 'Directrice des Ressources Humaines',
-                  photo: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=400&fit=crop',
-                  bio: 'Experte en gestion RH avec 15 ans d\'expérience dans le secteur public.',
-                  email: 'drh@cnss.bj'
+                  nom: "Marcel NOUTEVI",
+                  poste: "Assistant du Directeur Général",
+                  photo: "https://i.postimg.cc/5y5KNGZt/none.png",     
+                  bio: "",
+                  email: "adg@cnss.bj",
                 },
                 {
-                  nom: 'Alain DOSSOU',
-                  poste: 'Directeur des Systèmes d\'Information',
-                  photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop',
-                  bio: 'Spécialiste en transformation digitale et systèmes d\'information.',
-                  email: 'dsi@cnss.bj'
+                  nom: "Bachir ABOUDOU",
+                  poste: "Directeur de l’Audit Interne et de l’Inspection",
+                  photo: "https://i.postimg.cc/BnzBJjWr/Bachir-Abdou.jpg",
+                  bio: "",
+                  email: "daii@cnss.bj",
                 },
                 {
-                  nom: 'Sylvie ABALO',
-                  poste: 'Directrice des Prestations',
-                  photo: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&h=400&fit=crop',
-                  bio: 'Gestionnaire de prestations sociales, 20 ans d\'expérience.',
-                  email: 'dprest@cnss.bj'
+                  nom: "Roger A. ABALLO",
+                  poste: "Directeur des Ressources Humaines",
+                  photo: "https://i.postimg.cc/rzXzh27Q/Roger-Aballo.jpg",
+                  bio: "",
+                  email: "drh@cnss.bj",
                 },
                 {
-                  nom: 'Thomas HOUNGBO',
-                  poste: 'Directeur Financier',
-                  photo: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&h=400&fit=crop',
-                  bio: 'Expert-comptable, spécialiste en gestion financière publique.',
-                  email: 'daf@cnss.bj'
+                  nom: "Thomas HOUNGBO",
+                  poste: "Directeur Financier et Comptable",
+                  photo: "https://i.postimg.cc/c1jDskQ7/Hugues-Sodogla.jpg",
+                  bio: "",
+                  email: "dfc@cnss.bj",
                 },
                 {
-                  nom: 'Rachelle AZONDEKON',
-                  poste: 'Directrice Juridique',
-                  photo: 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=400&h=400&fit=crop',
-                  bio: 'Avocate spécialisée en droit du travail et sécurité sociale.',
-                  email: 'djur@cnss.bj'
+                  nom: "Edgard ZOHOUN",
+                  poste: "Directeur du Recouvrement",
+                  photo: "https://i.postimg.cc/5y5KNGZt/none.png",
+                  bio: "",
+                  email: "dr@cnss.bj",
                 },
                 {
-                  nom: 'Ernest AGBODJAN',
-                  poste: 'Directeur du Contrôle et de l\'Audit',
-                  photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
-                  bio: 'Auditeur certifié, expert en contrôle interne et gestion des risques.',
-                  email: 'dca@cnss.bj'
-                }
+                  nom: "Daniel GOUROUBERA",
+                  poste: "Directeur des Prestations par intérim",
+                  photo: "https://i.postimg.cc/QxVd7bnJ/daniel-Gouroubera.png",
+                  bio: "",
+                  email: "dpi@cnss.bj",
+                },
+
+                {
+                  nom: "Azizou SALE",
+                  poste: "Directeur des Systèmes d’Information",
+                  photo: "https://i.postimg.cc/5y5KNGZt/none.png",
+                  bio: "",
+                  email: "dsi@cnss.bj",
+                },
+                {
+                  nom: "Djouwératou BOUKARI ABOUDOU",
+                  poste: "Directrice du Budget et du Patrimoine",
+                  photo: "https://i.postimg.cc/5y5KNGZt/none.png",
+                  bio: "",
+                  email: "dbp@cnss.bj",
+                },
+                {
+                  nom: "Hamzat ALLOU DJERMA",
+                  poste: "Personne Responsable des Marchés Publics",
+                  photo:
+                    "https://i.postimg.cc/s2XgyJdK/Hamzat-Allou-Djerma.png",
+                  bio: "",
+                  email: "prmp@cnss.bj",
+                },
               ].map((directeur, index) => (
-                <div key={index} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all hover:-translate-y-2">
+                <div
+                  key={index}
+                  className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all hover:-translate-y-2"
+                >
                   <div className="aspect-square overflow-hidden">
                     <img
                       src={directeur.photo}
                       alt={directeur.nom}
-                      className="w-full h-full object-cover"
+                      className="w-full  object-cover"
                     />
                   </div>
                   <div className="p-6">
-                    <h3 className="text-xl font-bold text-gray-900 mb-1">{directeur.nom}</h3>
-                    <p className="text-blue-600 font-semibold text-sm mb-3">{directeur.poste}</p>
-                    <p className="text-gray-600 text-sm mb-4">{directeur.bio}</p>
+                    <h3 className="text-xl font-bold text-gray-900 mb-1">
+                      {directeur.nom}
+                    </h3>
+                    <p className="text-blue-600 font-semibold text-sm mb-3">
+                      {directeur.poste}
+                    </p>
+                    <p className="text-gray-600 text-sm mb-4">
+                      {directeur.bio}
+                    </p>
                     <a
                       href={`mailto:${directeur.email}`}
                       className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
@@ -472,9 +564,12 @@ export function PresentationPage() {
         return (
           <div className="space-y-12">
             <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-6">Organigramme de la CNSS</h1>
+              <h1 className="text-4xl font-bold text-gray-900 mb-6">
+                Organigramme de la CNSS
+              </h1>
               <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Structure organisationnelle et hiérarchique de la Caisse Nationale de Sécurité Sociale
+                Structure organisationnelle et hiérarchique de la Caisse
+                Nationale de Sécurité Sociale
               </p>
             </div>
 
@@ -486,7 +581,9 @@ export function PresentationPage() {
                     <User className="w-12 h-12" />
                     <div className="text-left">
                       <p className="text-sm opacity-90">Direction Générale</p>
-                      <p className="text-xl font-bold">Apollinaire CADETE TCHINTCHIN</p>
+                      <p className="text-xl font-bold">
+                        Apollinaire CADETE TCHINTCHIN
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -496,17 +593,53 @@ export function PresentationPage() {
 
                 {/* Lignes horizontales vers les directions */}
                 <div className="relative w-full">
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-blue-300" style={{ top: '0' }}></div>
+                  <div
+                    className="absolute top-0 left-0 right-0 h-1 bg-blue-300"
+                    style={{ top: "0" }}
+                  ></div>
 
                   {/* Directions techniques - 2 lignes de 3 */}
                   <div className="grid md:grid-cols-3 gap-6 mt-8">
                     {[
-                      { titre: 'Direction des RH', responsable: 'Marie KOUDOU', services: ['Recrutement', 'Formation', 'Paie'] },
-                      { titre: 'Direction SI', responsable: 'Alain DOSSOU', services: ['Développement', 'Infrastructure', 'Support'] },
-                      { titre: 'Direction Prestations', responsable: 'Sylvie ABALO', services: ['Retraites', 'Famille', 'AT-MP'] },
-                      { titre: 'Direction Financière', responsable: 'Thomas HOUNGBO', services: ['Comptabilité', 'Budget', 'Trésorerie'] },
-                      { titre: 'Direction Juridique', responsable: 'Rachelle AZONDEKON', services: ['Contentieux', 'Contrats', 'Conformité'] },
-                      { titre: 'Direction Audit', responsable: 'Ernest AGBODJAN', services: ['Contrôle', 'Risques', 'Qualité'] }
+                      {
+                        titre: "Direction des RH",
+                        responsable: "Roger ABALLO",
+                        services: ["Recrutement", "Formation", "Paie"],
+                      },
+                      {
+                        titre: "Direction SI",
+                        responsable: "Azizou SALE",
+                        services: [
+                          "Développement",
+                          "Infrastructure",
+                          "Support",
+                        ],
+                      },
+                      {
+                        titre: "Direction Prestations",
+                        responsable: "Daniel GOUROUBERA",
+                        services: ["Retraites", "Famille", "AT-MP"],
+                      },
+                      {
+                        titre: "Direction Financière",
+                        responsable: "Hugues SODOGLA",
+                        services: ["Comptabilité", "Budget", "Trésorerie"],
+                      },
+                      {
+                        titre: "Direction du Budget et du Patrimoine",
+                        responsable: "Djouwératou BOUKARI ABOUDOU",
+                        services: ["Contentieux", "Contrats", "Conformité"],
+                      },
+                      {
+                        titre: "Direction Audit Interne et de l'Inspection",
+                        responsable: "Bachir ABOUDOU",
+                        services: ["Contrôle", "Risques", "Qualité"],
+                      },
+                      {
+                        titre: "Direction de Recouvrement",
+                        responsable: "Edgard ZOHOUN",
+                        services: ["Contentieux", "Contrats", "Conformité"],
+                      },
                     ].map((direction, index) => (
                       <div key={index} className="relative">
                         {/* Ligne verticale vers chaque direction */}
@@ -514,12 +647,19 @@ export function PresentationPage() {
 
                         <div className="bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 rounded-xl p-6 h-full">
                           <div className="mb-4">
-                            <p className="text-blue-600 font-semibold text-sm mb-2">{direction.titre}</p>
-                            <p className="font-bold text-gray-900">{direction.responsable}</p>
+                            <p className="text-blue-600 font-semibold text-sm mb-2">
+                              {direction.titre}
+                            </p>
+                            <p className="font-bold text-gray-900">
+                              {direction.responsable}
+                            </p>
                           </div>
                           <div className="space-y-2">
                             {direction.services.map((service, idx) => (
-                              <div key={idx} className="text-sm text-gray-600 flex items-center gap-2">
+                              <div
+                                key={idx}
+                                className="text-sm text-gray-600 flex items-center gap-2"
+                              >
                                 <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
                                 {service}
                               </div>
