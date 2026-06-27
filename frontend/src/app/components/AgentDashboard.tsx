@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useEffect, useState } from 'react';
 import {
   Home,
   Users,
@@ -49,13 +49,56 @@ import {
   Legend,
 } from 'recharts';
 import { Link } from 'react-router';
-import { useUser } from '../hooks/useUser';
 import { CNSSLogo } from './CNSSLogo';
-import { getEmployeurs, validerEmployeur, rejeterEmployeur, getEmployeur, getTravailleursEnAttente, validerTravailleur, rejeterTravailleur } from '../api';
-import RejectionModal from './RejectionModal';
-import CnssToast from './CnssToast';
+import {
+  getEmployeurs,
+  getTravailleurs,
+  getCotisations,
+  getPrestations,
+  getAgents,
+  getFaqs,
+  getActivityLogs,
+  getStatsAdmin,
+  getActualites,
+  validerDeclaration,
+  relancerCotisation,
+  validerPrestation,
+  rejeterPrestation,
+  getStoredUser,
+} from '../api';
 
-// ─── Role definitions ─────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Helpers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+function groupTravailleursByEmployeur(travailleurs: Travailleur[]): DemandesTravailleursParEmployeur[] {
+  const grouped: Record<string, { employeurId: string; employeur: string; immatriculation: string; travailleurs: Travailleur[] }> = {};
+
+  travailleurs.forEach((t: Travailleur) => {
+    const employerObj = typeof t.employeur === 'object' && t.employeur !== null ? t.employeur : undefined;
+    const employeurId = String(
+      t.employeur_id ??
+      t.employeurId ??
+      employerObj?.id ??
+      (typeof t.employeur === 'string' ? t.employeur : undefined) ??
+      'unknown'
+    );
+    const employeurName =
+      employerObj?.nom ??
+      (typeof t.employeur === 'string' ? t.employeur : undefined) ??
+      t.employeur_name ??
+      t.employeurLabel ??
+      'Inconnu';
+    const immatriculation = employerObj?.immatriculation ?? t.immatriculation ?? '';
+
+    if (!grouped[employeurId]) {
+      grouped[employeurId] = { employeurId, employeur: employeurName, immatriculation, travailleurs: [] };
+    }
+
+    grouped[employeurId].travailleurs.push(t);
+  });
+
+  return Object.values(grouped);
+}
+
+// ÔöÇÔöÇÔöÇ Role definitions ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 type RoleId =
   | 'immatriculation'
@@ -81,7 +124,7 @@ const ROLES: Role[] = [
   { id: 'admin',           label: 'Administrateur',           color: 'bg-red-100 text-red-700',     badge: 'Admin'           },
 ];
 
-// ─── Shared helpers ───────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Shared helpers ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 function StatCard({ label, value, sub, icon, color }: { label: string; value: string | number; sub?: string; icon: React.ReactNode; color: string }) {
   return (
@@ -138,46 +181,44 @@ function SearchBar({ placeholder }: { placeholder: string }) {
   );
 }
 
-// ─── Agent Immatriculation ────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Agent Immatriculation ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
-const demandesEmployeurs: {
-  id: string; raisonSociale: string; formeJuridique: string; secteur: string;
-  adresse: string; telephone: string; email: string; dateCreation: string;
-  dateDemande: string; statut: 'En attente' | 'Validée' | 'Rejetée';
-}[] = [];
+type DemandeEmployeur = {
+  id: string;
+  raisonSociale: string;
+  formeJuridique?: string;
+  secteur?: string;
+  adresse?: string;
+  telephone?: string;
+  email?: string;
+  dateCreation?: string;
+  dateDemande?: string;
+  statut: 'En attente' | 'Valid├®e' | 'Rejet├®e';
+  immatriculation?: string;
+};
 
-function mapTravailleurStatut(statut: string): 'En attente' | 'Validée' | 'Rejetée' {
-  if (statut === 'actif') return 'Validée';
-  if (statut === 'rejetee') return 'Rejetée';
-  return 'En attente';
-}
+type Travailleur = {
+  id: string;
+  nom: string;
+  prenom?: string;
+  dateNaissance?: string;
+  poste?: string;
+  salaire?: string;
+  statut: 'En attente' | 'Valid├®e' | 'Rejet├®e';
+  employeur_id?: string;
+  employeurId?: string;
+  employeur?: string | { id?: string; nom?: string; immatriculation?: string };
+  employeur_name?: string;
+  employeurLabel?: string;
+  immatriculation?: string;
+};
 
-function groupTravailleursByEmployeur(travailleurs: any[]) {
-  const map = new Map<string, any>();
-  for (const t of travailleurs) {
-    const emp = t.employeur;
-    const key = String(emp?.id ?? t.employeur_id);
-    if (!map.has(key)) {
-      map.set(key, {
-        employeurId: key,
-        employeur: emp?.company_name ?? 'Employeur inconnu',
-        immatriculation: emp?.numero_cnss ?? '—',
-        travailleurs: [],
-      });
-    }
-    map.get(key).travailleurs.push({
-      id: String(t.id),
-      nom: t.last_name ?? t.nom,
-      prenom: t.first_name ?? t.prenom,
-      dateNaissance: t.date_naissance ? new Date(t.date_naissance).toLocaleDateString('fr-FR') : '—',
-      poste: t.position ?? t.poste ?? '—',
-      salaire: t.salaire_brut ? Number(t.salaire_brut).toLocaleString('fr-FR') : '—',
-      statut: mapTravailleurStatut(t.statut),
-      raw: t,
-    });
-  }
-  return Array.from(map.values());
-}
+type DemandesTravailleursParEmployeur = {
+  employeurId: string;
+  employeur: string;
+  immatriculation: string;
+  travailleurs: Travailleur[];
+};
 
 type ImmatTab = 'apercu' | 'employeurs' | 'travailleurs' | 'historique';
 
@@ -185,83 +226,54 @@ function AgentImmatriculation() {
   const [tab, setTab] = useState<ImmatTab>('apercu');
   const [detailEmployeur, setDetailEmployeur] = useState<string | null>(null);
   const [detailTravailleur, setDetailTravailleur] = useState<string | null>(null);
-  const [employeurs, setEmployeurs] = useState<any[]>([]);
-  const [allEmployeurs, setAllEmployeurs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedDetail, setSelectedDetail] = useState<any | null>(null);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectTarget, setRejectTarget] = useState<{ id: number | string; name?: string } | null>(null);
-  const [toastOpen, setToastOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVariant, setToastVariant] = useState<'success'|'error'|'info'>('success');
-  const [travailleursEnAttente, setTravailleursEnAttente] = useState<any[]>([]);
-  const [rejectTravailleurTarget, setRejectTravailleurTarget] = useState<{ id: number | string; name?: string } | null>(null);
-  const [showRejectTravailleurModal, setShowRejectTravailleurModal] = useState(false);
-
-  const demandesTravailleursParEmployeur = groupTravailleursByEmployeur(travailleursEnAttente);
-
-  async function loadTravailleursEnAttente() {
-    try {
-      const data = await getTravailleursEnAttente();
-      setTravailleursEnAttente(data as any[]);
-    } catch (err) {
-      console.error('Erreur chargement travailleurs en attente', err);
-    }
-  }
+  const [demandesEmployeurs, setDemandesEmployeurs] = useState<DemandeEmployeur[]>([]);
+  const [demandesTravailleursParEmployeur, setDemandesTravailleursParEmployeur] = useState<DemandesTravailleursParEmployeur[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
+    async function loadData() {
+      setIsLoading(true);
+      setError(null);
       try {
-        const data = await getEmployeurs();
-        setAllEmployeurs(data as any[]);
-        const pending = (data as any[]).filter(e => e.statut === 'en_attente' || e.statut === 'en attente' || e.statut === 'en_attente');
-        setEmployeurs(pending);
-        await loadTravailleursEnAttente();
-      } catch (err) {
-        console.error('Erreur chargement employeurs', err);
+        const employeurs = await getEmployeurs();
+        const travailleurs = await getTravailleurs();
+
+        const demandes = employeurs.map((employeur: any) => ({
+          id: String(employeur.id),
+          raisonSociale: employeur.raison_sociale ?? employeur.nom ?? 'Employeur inconnu',
+          formeJuridique: employeur.forme_juridique ?? employeur.formeJuridique,
+          secteur: employeur.secteur,
+          adresse: employeur.adresse,
+          telephone: employeur.telephone,
+          email: employeur.email,
+          dateCreation: employeur.date_creation ?? employeur.created_at,
+          dateDemande: employeur.date_demande ?? employeur.demande_date,
+          statut: employeur.statut ?? 'En attente',
+          immatriculation: employeur.immatriculation,
+        })) as DemandeEmployeur[];
+
+        setDemandesEmployeurs(demandes);
+        setDemandesTravailleursParEmployeur(groupTravailleursByEmployeur(travailleurs));
+      } catch (e: any) {
+        setError(e?.message ?? 'Impossible de charger les donn├®es');
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     }
-    load();
+
+    loadData();
   }, []);
 
-  // Fetch single employer when detail requested
-  useEffect(() => {
-    if (!detailEmployeur) {
-      setSelectedDetail(null);
-      return;
-    }
-    let mounted = true;
-    (async () => {
-      try {
-        const d = await getEmployeur(detailEmployeur);
-        if (mounted) setSelectedDetail(d);
-      } catch (err) {
-        console.error('Erreur chargement detail employeur', err);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [detailEmployeur]);
-
-  function getFileUrl(path: string) {
-    const api = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api/v1';
-    const origin = api.replace(/\/api\/v1\/?$/i, '');
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `${origin}/storage/${path.replace(/^\/+/, '')}`;
-  }
-
   const tabs = [
-    { id: 'apercu' as ImmatTab, label: 'Aperçu', icon: <Home className="w-4 h-4" /> },
+    { id: 'apercu' as ImmatTab, label: 'Aper├ºu', icon: <Home className="w-4 h-4" /> },
     { id: 'employeurs' as ImmatTab, label: 'Demandes employeurs', icon: <Users className="w-4 h-4" /> },
-    { id: 'travailleurs' as ImmatTab, label: 'Déclaration travailleurs', icon: <UserPlus className="w-4 h-4" /> },
+    { id: 'travailleurs' as ImmatTab, label: 'D├®claration travailleurs', icon: <UserPlus className="w-4 h-4" /> },
     { id: 'historique' as ImmatTab, label: 'Historique', icon: <Clock className="w-4 h-4" /> },
   ];
 
-  const statusBadge = (s: 'En attente' | 'Validée' | 'Rejetée') => {
-    const map = { 'En attente': 'orange', 'Validée': 'green', 'Rejetée': 'red' } as const;
+  const statusBadge = (s: 'En attente' | 'Valid├®e' | 'Rejet├®e') => {
+    const map = { 'En attente': 'orange', 'Valid├®e': 'green', 'Rejet├®e': 'red' } as const;
     return <Badge label={s} variant={map[s]} />;
   };
 
@@ -280,32 +292,28 @@ function AgentImmatriculation() {
         <div className="space-y-6">
           <SectionHeader title="Immatriculation" sub="Gestion des demandes d'immatriculation employeurs et travailleurs" />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Employeurs en attente" value={employeurs.length} icon={<Users className="w-5 h-5" />} color="bg-violet-100 text-violet-600" />
-            <StatCard label="Travailleurs en attente" value={travailleursEnAttente.length} icon={<UserPlus className="w-5 h-5" />} color="bg-orange-100 text-orange-600" />
-            <StatCard label="Validés" value={allEmployeurs.filter(e => e.statut === 'validee' || e.statut === 'Validée').length} icon={<CheckCircle className="w-5 h-5" />} color="bg-green-100 text-green-600" />
-            <StatCard label="Rejetés" value={allEmployeurs.filter(e => e.statut === 'rejetee' || e.statut === 'Rejetée').length} sub="Ce mois" icon={<XCircle className="w-5 h-5" />} color="bg-red-100 text-red-600" />
+            <StatCard label="Employeurs en attente" value={demandesEmployeurs.filter(d => d.statut === 'En attente').length} icon={<Users className="w-5 h-5" />} color="bg-violet-100 text-violet-600" />
+            <StatCard label="Travailleurs en attente" value={demandesTravailleursParEmployeur.reduce((s, e) => s + e.travailleurs.length, 0)} icon={<UserPlus className="w-5 h-5" />} color="bg-orange-100 text-orange-600" />
+            <StatCard label="Valid├®s ce mois" value={demandesEmployeurs.filter(d => d.statut === 'Valid├®e').length} icon={<CheckCircle className="w-5 h-5" />} color="bg-green-100 text-green-600" />
+            <StatCard label="Rejet├®s" value={demandesEmployeurs.filter(d => d.statut === 'Rejet├®e').length} sub="Ce mois" icon={<XCircle className="w-5 h-5" />} color="bg-red-100 text-red-600" />
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-4">Demandes employeurs récentes</h3>
+              <h3 className="font-bold text-gray-900 mb-4">Demandes employeurs r├®centes</h3>
               <div className="space-y-3">
-                {loading ? (
-                  <p className="text-sm text-gray-500">Chargement...</p>
-                ) : (
-                  employeurs.slice(0, 3).map(e => (
-                    <div key={e.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div>
-                        <p className="font-semibold text-sm text-gray-900">{e.company_name ?? e.raison_sociale ?? e.company}</p>
-                        <p className="text-xs text-gray-500">{e.id} · {e.secteur}</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {statusBadge('En attente')}
-                        <button onClick={() => { setTab('employeurs'); setDetailEmployeur(e.id.toString()); }} className="text-blue-600 hover:text-blue-700"><Eye className="w-4 h-4" /></button>
-                      </div>
+                {demandesEmployeurs.slice(0, 3).map(d => (
+                  <div key={d.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div>
+                      <p className="font-semibold text-sm text-gray-900">{d.raisonSociale}</p>
+                      <p className="text-xs text-gray-500">{d.id} ┬À {d.secteur}</p>
                     </div>
-                  ))
-                )}
+                    <div className="flex items-center gap-3">
+                      {statusBadge(d.statut)}
+                      <button onClick={() => { setTab('employeurs'); setDetailEmployeur(d.id); }} className="text-blue-600 hover:text-blue-700" title="Voir les d├®tails" aria-label="Voir les d├®tails"><Eye className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))}
               </div>
               <button onClick={() => setTab('employeurs')} className="mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
                 Voir toutes les demandes <ChevronRight className="w-4 h-4" />
@@ -313,27 +321,23 @@ function AgentImmatriculation() {
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-4">Déclarations travailleurs</h3>
+              <h3 className="font-bold text-gray-900 mb-4">D├®clarations travailleurs</h3>
               <div className="space-y-3">
-                {demandesTravailleursParEmployeur.length === 0 ? (
-                  <p className="text-sm text-gray-500">Aucune déclaration travailleur en attente.</p>
-                ) : (
-                  demandesTravailleursParEmployeur.slice(0, 3).map(emp => (
+                {demandesTravailleursParEmployeur.map(emp => (
                   <div key={emp.employeurId} className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                       <p className="font-semibold text-sm text-gray-900">{emp.employeur}</p>
-                      <Badge label={`${emp.travailleurs.length} travailleur(s)`} variant="blue" />
+                      <Badge label={`${emp.travailleurs.length} travailleurs`} variant="blue" />
                     </div>
                     <p className="text-xs text-gray-500 mb-2">{emp.immatriculation}</p>
                     <button onClick={() => { setTab('travailleurs'); }} className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
                       Voir les travailleurs <ChevronRight className="w-3 h-3" />
                     </button>
                   </div>
-                  ))
-                )}
+                ))}
               </div>
               <button onClick={() => setTab('travailleurs')} className="mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-                Voir toutes les déclarations <ChevronRight className="w-4 h-4" />
+                Voir toutes les d├®clarations <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -341,19 +345,18 @@ function AgentImmatriculation() {
       )}
 
       {tab === 'employeurs' && (
-        <>
         <div className="space-y-4">
           {!detailEmployeur ? (
             <>
               <SectionHeader title="Demandes d'immatriculation employeurs" sub="2 demandes en attente de validation" />
               <SearchBar placeholder="Rechercher par raison sociale, secteur..." />
               <div className="space-y-3">
-                {employeurs.map(emp => (
+                {demandesEmployeurs.map(emp => (
                   <div key={emp.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <h3 className="font-bold text-gray-900 text-lg">{emp.raisonSociale}</h3>
-                        <p className="text-sm text-gray-500 mt-0.5">{emp.id} · Demande du {emp.dateDemande}</p>
+                        <p className="text-sm text-gray-500 mt-0.5">{emp.id} ┬À Demande du {emp.dateDemande}</p>
                       </div>
                       {statusBadge(emp.statut)}
                     </div>
@@ -371,7 +374,7 @@ function AgentImmatriculation() {
                         <span className="ml-2 font-medium text-gray-900">{emp.adresse}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">Téléphone:</span>
+                        <span className="text-gray-500">T├®l├®phone:</span>
                         <span className="ml-2 font-medium text-gray-900">{emp.telephone}</span>
                       </div>
                       <div>
@@ -379,59 +382,37 @@ function AgentImmatriculation() {
                         <span className="ml-2 font-medium text-gray-900">{emp.email}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">Date de création:</span>
+                        <span className="text-gray-500">Date de cr├®ation:</span>
                         <span className="ml-2 font-medium text-gray-900">{emp.dateCreation}</span>
                       </div>
                     </div>
-                    {( !emp.statut || emp.statut === 'en_attente' || emp.statut === 'en attente') && (
+                    {emp.statut === 'En attente' && (
                       <div className="flex items-center gap-3 mt-5 pt-4 border-t border-gray-100">
-                        <button onClick={async () => {
-                          try {
-                              const res = await validerEmployeur(emp.id);
-                              // If API returned updated employer, update local state immediately
-                              if (res && res.employeur) {
-                                const updated = res.employeur;
-                                setAllEmployeurs(prev => prev.map(p => p.id === updated.id ? updated : p));
-                                setEmployeurs(prev => prev.filter(e => e.id !== updated.id));
-                              } else {
-                                // fallback: refresh full list
-                                const data = await getEmployeurs();
-                                setAllEmployeurs(data as any[]);
-                                setEmployeurs((data as any[]).filter(e => e.statut === 'en_attente' || e.statut === 'en attente'));
-                              }
-                              setToastMessage(res?.message || 'Employeur validé et e-mail envoyé.');
-                              setToastVariant('success');
-                              setToastOpen(true);
-                          } catch (err: any) {
-                            setToastMessage(err?.message || 'Erreur lors de la validation');
-                            setToastVariant('error');
-                            setToastOpen(true);
-                          }
-                        }} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">
+                        <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">
                           <CheckCircle className="w-4 h-4" />
                           Valider et envoyer attestation
                         </button>
-                        <button onClick={() => { setRejectTarget({ id: emp.id, name: emp.company_name ?? emp.raisonSociale ?? emp.raison_sociale }); setShowRejectModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50 transition-colors">
+                        <button className="flex items-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50 transition-colors">
                           <XCircle className="w-4 h-4" />
                           Rejeter
                         </button>
                         <button onClick={() => setDetailEmployeur(emp.id)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors">
                           <Eye className="w-4 h-4" />
-                          Voir détails
+                          Voir d├®tails
                         </button>
                       </div>
                     )}
-                    {(emp.statut === 'validee' || emp.statut === 'Validée' || emp.statut === 'Validee') && (
+                    {emp.statut === 'Valid├®e' && (
                       <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                         <div className="flex items-start gap-2">
                           <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                           <div>
-                            <p className="text-sm font-semibold text-green-900">Demande validée</p>
+                            <p className="text-sm font-semibold text-green-900">Demande valid├®e</p>
                             <p className="text-xs text-green-700 mt-0.5">
-                              N° Immatriculation: <span className="font-mono font-bold">{emp.numero_cnss ?? '—'}</span>
+                              N┬░ Immatriculation: <span className="font-mono font-bold">BJ-EMP-20260503-0010</span>
                             </p>
                             <p className="text-xs text-green-600 mt-1">
-                              ✓ Attestation envoyée · ✓ Lien d'adhésion envoyé à {emp.email}
+                              Ô£ô Attestation envoy├®e ┬À Ô£ô Lien d'adh├®sion envoy├® ├á {emp.email}
                             </p>
                           </div>
                         </div>
@@ -445,95 +426,22 @@ function AgentImmatriculation() {
             <div>
               <button onClick={() => setDetailEmployeur(null)} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4">
                 <ChevronRight className="w-4 h-4 rotate-180" />
-                Retour à la liste
+                Retour ├á la liste
               </button>
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Détails de la demande</h2>
-                {!selectedDetail ? (
-                  <p className="text-gray-500">Chargement...</p>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Raison sociale</p>
-                      <p className="font-semibold text-gray-900">{selectedDetail.company_name}</p>
-                    </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Adresse</p>
-                        <p className="font-medium text-gray-900">{selectedDetail.address}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Téléphone</p>
-                        <p className="font-medium text-gray-900">{selectedDetail.phone}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Email</p>
-                        <p className="font-medium text-gray-900">{selectedDetail.email}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Numéro CNSS</p>
-                        <p className="font-medium text-gray-900">{selectedDetail.numero_cnss ?? '—'}</p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-sm text-gray-500">Pièces justificatives</p>
-                      {selectedDetail.pieces_justificatives && Object.keys(selectedDetail.pieces_justificatives).length > 0 ? (
-                        <ul className="mt-2 space-y-2">
-                          {Object.entries(selectedDetail.pieces_justificatives).map(([key, val]: any) => {
-                            const url = getFileUrl(String(val));
-                            return (
-                              <li key={key} className="text-sm">
-                                <span className="text-gray-700 font-medium">{key}:</span>{' '}
-                                {url ? (
-                                  <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">Ouvrir</a>
-                                ) : (
-                                  <span className="text-gray-500">{String(val)}</span>
-                                )}
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-gray-500">Aucune pièce téléversée.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                <h2 className="text-xl font-bold text-gray-900 mb-6">D├®tails de la demande</h2>
+                <p className="text-gray-500">Affichage complet des informations de l'employeur...</p>
               </div>
             </div>
           )}
         </div>
-      <RejectionModal open={showRejectModal} onClose={() => { setShowRejectModal(false); setRejectTarget(null); }} employerName={rejectTarget?.name} onConfirm={async (raison) => {
-        if (!rejectTarget) return;
-        try {
-          await rejeterEmployeur(rejectTarget.id, raison);
-          const data = await getEmployeurs();
-          setEmployeurs((data as any[]).filter(e => e.statut === 'en_attente' || e.statut === 'en attente'));
-          setShowRejectModal(false);
-          setRejectTarget(null);
-          setToastMessage('Demande rejetée et e-mail envoyé.');
-          setToastVariant('success');
-          setToastOpen(true);
-        } catch (err: any) {
-          setToastMessage(err?.message || 'Erreur lors du rejet');
-          setToastVariant('error');
-          setToastOpen(true);
-        }
-      }} />
-      <CnssToast open={toastOpen} message={toastMessage} variant={toastVariant} onClose={() => setToastOpen(false)} />
-      </>
       )}
 
       {tab === 'travailleurs' && (
         <div className="space-y-4">
-          <SectionHeader title="Déclaration des travailleurs" sub={`${travailleursEnAttente.length} déclaration(s) en attente de validation`} />
+          <SectionHeader title="D├®claration des travailleurs" sub="Demandes group├®es par employeur" />
           <SearchBar placeholder="Rechercher par employeur ou travailleur..." />
-          {demandesTravailleursParEmployeur.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
-              <p className="text-gray-500">Aucune déclaration travailleur en attente.</p>
-            </div>
-          ) : demandesTravailleursParEmployeur.map(emp => (
+          {demandesTravailleursParEmployeur.map(emp => (
             <div key={emp.employeurId} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
               <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
                 <div>
@@ -542,7 +450,7 @@ function AgentImmatriculation() {
                     Immatriculation: <span className="font-mono font-semibold text-gray-700">{emp.immatriculation}</span>
                   </p>
                 </div>
-                <Badge label={`${emp.travailleurs.length} travailleur(s)`} variant="blue" />
+                <Badge label={`${emp.travailleurs.length} travailleurs`} variant="blue" />
               </div>
               <div className="space-y-2">
                 {emp.travailleurs.map(t => (
@@ -550,111 +458,49 @@ function AgentImmatriculation() {
                     <div className="flex-1">
                       <p className="font-semibold text-sm text-gray-900">{t.nom} {t.prenom}</p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {t.poste} · Né(e) le {t.dateNaissance} · Salaire: {t.salaire} FCFA
+                        {t.poste} ┬À N├®(e) le {t.dateNaissance} ┬À Salaire: {t.salaire} FCFA
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       {statusBadge(t.statut)}
                       {t.statut === 'En attente' && (
                         <>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const res = await validerTravailleur(t.id);
-                                await loadTravailleursEnAttente();
-                                setToastMessage(res?.message || 'Travailleur validé et email envoyé.');
-                                setToastVariant('success');
-                                setToastOpen(true);
-                              } catch (err: any) {
-                                setToastMessage(err?.message || 'Erreur lors de la validation');
-                                setToastVariant('error');
-                                setToastOpen(true);
-                              }
-                            }}
-                            className="p-1.5 text-gray-400 hover:text-green-600 transition-colors"
-                            title="Valider"
-                          >
+                          <button className="p-1.5 text-gray-400 hover:text-green-600 transition-colors" title="Valider" aria-label="Valider">
                             <CheckCircle className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => {
-                              setRejectTravailleurTarget({ id: t.id, name: `${t.prenom} ${t.nom}` });
-                              setShowRejectTravailleurModal(true);
-                            }}
-                            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
-                            title="Rejeter"
-                          >
+                          <button className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Rejeter" aria-label="Rejeter">
                             <XCircle className="w-4 h-4" />
                           </button>
                         </>
                       )}
+                      <button className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Voir les d├®tails" aria-label="Voir les d├®tails">
+                        <Eye className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
+              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-100">
+                <button className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors">
+                  <CheckCircle className="w-4 h-4" />
+                  Tout valider ({emp.travailleurs.filter(t => t.statut === 'En attente').length})
+                </button>
+                <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors">
+                  <Download className="w-4 h-4" />
+                  Exporter la liste
+                </button>
+              </div>
             </div>
           ))}
-          <RejectionModal
-            open={showRejectTravailleurModal}
-            onClose={() => { setShowRejectTravailleurModal(false); setRejectTravailleurTarget(null); }}
-            employerName={rejectTravailleurTarget?.name}
-            onConfirm={async (raison) => {
-              if (!rejectTravailleurTarget) return;
-              try {
-                await rejeterTravailleur(rejectTravailleurTarget.id, raison);
-                await loadTravailleursEnAttente();
-                setShowRejectTravailleurModal(false);
-                setRejectTravailleurTarget(null);
-                setToastMessage('Déclaration travailleur rejetée. L\'employeur a été notifié.');
-                setToastVariant('success');
-                setToastOpen(true);
-              } catch (err: any) {
-                setToastMessage(err?.message || 'Erreur lors du rejet');
-                setToastVariant('error');
-                setToastOpen(true);
-              }
-            }}
-          />
-          <CnssToast open={toastOpen} message={toastMessage} variant={toastVariant} onClose={() => setToastOpen(false)} />
         </div>
       )}
 
       {tab === 'historique' && (
         <div>
-          <SectionHeader title="Historique" sub="Toutes les demandes traitées" />
+          <SectionHeader title="Historique" sub="Toutes les demandes trait├®es" />
           <SearchBar placeholder="Rechercher dans l'historique..." />
-          <div className="space-y-3">
-            {(allEmployeurs.filter(e => !(e.statut === 'en_attente' || e.statut === 'en attente' || e.statut === null))).length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-                <p className="text-sm text-gray-500">Historique des demandes validées et rejetées...</p>
-              </div>
-            ) : (
-              allEmployeurs
-                .filter(e => !(e.statut === 'en_attente' || e.statut === 'en attente' || e.statut === null))
-                .sort((a, b) => (new Date(b.updated_at || b.created_at).getTime()) - (new Date(a.updated_at || a.created_at).getTime()))
-                .map(e => (
-                  <div key={e.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">{e.company_name ?? e.raison_sociale ?? e.raisonSociale}</p>
-                      <p className="text-xs text-gray-500">ID {e.id} · {new Date(e.updated_at || e.created_at).toLocaleString()}</p>
-                      {e.statut && (
-                        <p className="text-sm text-gray-700 mt-2">Statut: <span className="font-mono font-semibold">{e.statut}</span></p>
-                      )}
-                      {e.numero_cnss && (
-                        <p className="text-sm text-green-700 mt-1">N° Immatriculation: <span className="font-mono font-bold">{e.numero_cnss}</span></p>
-                      )}
-                      {e.raison_rejet && (
-                        <p className="text-sm text-red-600 mt-1">Raison du rejet: {e.raison_rejet}</p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${e.statut && (e.statut.toLowerCase().includes('valide') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}`}>
-                        {e.statut}
-                      </span>
-                    </div>
-                  </div>
-                ))
-            )}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <p className="text-sm text-gray-500">Historique des demandes valid├®es et rejet├®es...</p>
           </div>
         </div>
       )}
@@ -662,7 +508,7 @@ function AgentImmatriculation() {
   );
 }
 
-// ─── Agent Employeur ──────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Agent Employeur ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 const employeursData: {
   id: string; immatriculation: string; raisonSociale: string; secteur: string;
@@ -681,7 +527,7 @@ function AgentEmployeur() {
   const [selectedEmployeur, setSelectedEmployeur] = useState<string | null>(null);
 
   const tabs = [
-    { id: 'apercu' as EmployeurTab, label: 'Aperçu', icon: <Home className="w-4 h-4" /> },
+    { id: 'apercu' as EmployeurTab, label: 'Aper├ºu', icon: <Home className="w-4 h-4" /> },
     { id: 'employeurs' as EmployeurTab, label: 'Liste employeurs', icon: <Users className="w-4 h-4" /> },
     { id: 'changements' as EmployeurTab, label: "Changements d'employeur", icon: <RefreshCw className="w-4 h-4" /> },
   ];
@@ -710,13 +556,13 @@ function AgentEmployeur() {
 
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-4">Employeurs récents</h3>
+              <h3 className="font-bold text-gray-900 mb-4">Employeurs r├®cents</h3>
               <div className="space-y-3">
                 {employeursData.slice(0, 3).map(emp => (
                   <div key={emp.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => { setTab('employeurs'); setSelectedEmployeur(emp.id); }}>
                     <div>
                       <p className="font-semibold text-sm text-gray-900">{emp.raisonSociale}</p>
-                      <p className="text-xs text-gray-500">{emp.nbTravailleurs} travailleurs · {emp.secteur}</p>
+                      <p className="text-xs text-gray-500">{emp.nbTravailleurs} travailleurs ┬À {emp.secteur}</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-400" />
                   </div>
@@ -753,13 +599,13 @@ function AgentEmployeur() {
         <div className="space-y-4">
           {!selectedEmployeur ? (
             <>
-              <SectionHeader title="Liste des employeurs" sub="2 418 employeurs immatriculés" />
+              <SectionHeader title="Liste des employeurs" sub="2 418 employeurs immatricul├®s" />
               <SearchBar placeholder="Rechercher par raison sociale, secteur..." />
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      {['N° Immatriculation', 'Raison sociale', 'Secteur', 'Ville', 'Travailleurs', 'Cotisation', 'Actions'].map(h => (
+                      {['N┬░ Immatriculation', 'Raison sociale', 'Secteur', 'Ville', 'Travailleurs', 'Cotisation', 'Actions'].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                       ))}
                     </tr>
@@ -772,11 +618,11 @@ function AgentEmployeur() {
                         <td className="px-4 py-3 text-gray-600 text-xs">{emp.secteur}</td>
                         <td className="px-4 py-3 text-gray-500 text-xs">{emp.ville}</td>
                         <td className="px-4 py-3"><Badge label={`${emp.nbTravailleurs}`} variant="blue" /></td>
-                        <td className="px-4 py-3"><Badge label={emp.cotisation} variant={emp.cotisation === 'À jour' ? 'green' : 'red'} /></td>
+                        <td className="px-4 py-3"><Badge label={emp.cotisation} variant={emp.cotisation === '├Ç jour' ? 'green' : 'red'} /></td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <button onClick={() => setSelectedEmployeur(emp.id)} className="p-1 text-gray-400 hover:text-blue-600"><Eye className="w-4 h-4" /></button>
-                            <button className="p-1 text-gray-400 hover:text-orange-500"><Edit className="w-4 h-4" /></button>
+                            <button onClick={() => setSelectedEmployeur(emp.id)} className="p-1 text-gray-400 hover:text-blue-600" title="Voir les d├®tails" aria-label="Voir les d├®tails"><Eye className="w-4 h-4" /></button>
+                            <button title="Modifier" aria-label="Modifier" className="p-1 text-gray-400 hover:text-orange-500"><Edit className="w-4 h-4" /></button>
                           </div>
                         </td>
                       </tr>
@@ -789,7 +635,7 @@ function AgentEmployeur() {
             <div>
               <button onClick={() => setSelectedEmployeur(null)} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4">
                 <ChevronRight className="w-4 h-4 rotate-180" />
-                Retour à la liste
+                Retour ├á la liste
               </button>
               {(() => {
                 const emp = employeursData.find(e => e.id === selectedEmployeur);
@@ -828,12 +674,16 @@ function AgentEmployeur() {
                             <div key={t.mat} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
                               <div>
                                 <p className="font-semibold text-sm text-gray-900">{t.nom}</p>
-                                <p className="text-xs text-gray-500">{t.mat} · {t.poste} · {t.ville}</p>
+                                <p className="text-xs text-gray-500">{t.mat} ┬À {t.poste} ┬À {t.ville}</p>
                               </div>
                               <div className="flex items-center gap-3">
                                 <Badge label={t.statut} variant={t.statut === 'Actif' ? 'green' : 'gray'} />
-                                <button className="p-1 text-gray-400 hover:text-blue-600"><Eye className="w-4 h-4" /></button>
-                                <button className="p-1 text-gray-400 hover:text-orange-500"><Edit className="w-4 h-4" /></button>
+                                <button className="p-1 text-gray-400 hover:text-blue-600" title="Voir les d├®tails" aria-label="Voir les d├®tails">
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button className="p-1 text-gray-400 hover:text-orange-500" title="Modifier" aria-label="Modifier">
+                                  <Edit className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -879,58 +729,184 @@ function AgentEmployeur() {
   );
 }
 
-// ─── Agent Cotisation ─────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Agent Cotisation ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
-const declarations: {
-  ref: string; employeur: string; periode: string; montant: string;
-  statut: 'En attente' | 'En retard' | 'Vérifiée' | 'Rejetée'; echeance: string;
-}[] = [];
+type DeclarationStatus = 'En attente' | 'En retard' | 'V├®rifi├®e' | 'Rejet├®e' | 'Pay├®e' | 'Valid├®e';
+
+type Declaration = {
+  id: number | string;
+  ref: string;
+  employeur: string;
+  periode: string;
+  montant: string;
+  statut: DeclarationStatus;
+  echeance: string;
+};
+
+function mapDeclarationStatus(rawStatus: string): DeclarationStatus {
+  const normalized = rawStatus?.toString().toLowerCase() ?? '';
+  if (normalized.includes('attente') || normalized.includes('pending')) return 'En attente';
+  if (normalized.includes('retard') || normalized.includes('late')) return 'En retard';
+  if (normalized.includes('valid') || normalized.includes('paid')) return 'V├®rifi├®e';
+  if (normalized.includes('rejet')) return 'Rejet├®e';
+  return 'En attente';
+}
 
 function AgentCotisation() {
-  const statusBadge = (s: typeof declarations[0]['statut']) => {
-    const map = { 'En attente': 'orange', 'En retard': 'red', 'Vérifiée': 'green', 'Rejetée': 'red' } as const;
+  const [declarationsData, setDeclarationsData] = useState<Declaration[]>([]);
+  const [isLoadingDeclarations, setIsLoadingDeclarations] = useState(true);
+  const [declarationsError, setDeclarationsError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<number | string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadDeclarations() {
+      setIsLoadingDeclarations(true);
+      setDeclarationsError(null);
+      try {
+        const raw = await getCotisations();
+        const anyRaw = raw as any;
+        const items: any[] = Array.isArray(anyRaw) ? anyRaw : anyRaw.data ?? anyRaw.items ?? [];
+        const mapped: Declaration[] = items.map((item: any) => ({
+          id: item.id ?? item.ref ?? item.reference ?? String(Math.random()),
+          ref: item.reference ?? item.ref ?? String(item.id ?? item.reference ?? ''),
+          employeur:
+            item.employeur?.raison_sociale ??
+            item.employeur?.nom ??
+            item.employeur ??
+            item.employeur_name ??
+            item.nom_employeur ??
+            'Employeur inconnu',
+          periode: item.periode ?? item.period ?? item.date ?? '',
+          montant: item.montant_total != null ? Number(item.montant_total).toLocaleString() : item.montant != null ? Number(item.montant).toLocaleString() : '0',
+          statut: mapDeclarationStatus(item.statut ?? item.status ?? item.state ?? 'En attente'),
+          echeance: item.echeance ?? item.date_echeance ?? item.due_date ?? '',
+        }));
+        setDeclarationsData(mapped);
+      } catch (error: any) {
+        setDeclarationsError(error?.message ?? 'Impossible de charger les d├®clarations');
+      } finally {
+        setIsLoadingDeclarations(false);
+      }
+    }
+
+    loadDeclarations();
+  }, []);
+
+  const statusBadge = (s: DeclarationStatus) => {
+    const map: Record<DeclarationStatus, BadgeVariant> = {
+      'En attente': 'orange',
+      'En retard': 'red',
+      'V├®rifi├®e': 'green',
+      'Rejet├®e': 'red',
+      'Pay├®e': 'green',
+      'Valid├®e': 'green',
+    };
     return <Badge label={s} variant={map[s]} />;
+  };
+
+  const handleValiderDeclaration = async (id: number | string) => {
+    setActionLoading(id);
+    setActionMessage(null);
+    try {
+      await validerDeclaration(Number(id));
+      setDeclarationsData(prev => prev.map(d => (d.id === id ? { ...d, statut: 'V├®rifi├®e' } : d)));
+      setActionMessage('D├®claration valid├®e avec succ├¿s.');
+    } catch (error: any) {
+      setActionMessage(error?.message ?? 'Erreur lors de la validation.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRelancerCotisation = async (id: number | string) => {
+    setActionLoading(id);
+    setActionMessage(null);
+    try {
+      await relancerCotisation(Number(id));
+      setActionMessage('Employeur relanc├® avec succ├¿s.');
+    } catch (error: any) {
+      setActionMessage(error?.message ?? 'Erreur lors de la relance.');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Cotisations" sub="Vérification des déclarations et paiements employeurs" />
+      <SectionHeader title="Cotisations" sub="V├®rification des d├®clarations et paiements employeurs" />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Déclarations reçues" value={declarations.length} sub="Ce mois" icon={<FileText className="w-5 h-5" />} color="bg-blue-100 text-blue-600" />
-        <StatCard label="En attente" value={declarations.filter(d => d.statut === 'En attente').length} icon={<Clock className="w-5 h-5" />} color="bg-orange-100 text-orange-600" />
-        <StatCard label="En retard" value={declarations.filter(d => d.statut === 'En retard').length} icon={<AlertCircle className="w-5 h-5" />} color="bg-red-100 text-red-600" />
-        <StatCard label="Total encaissé" value="— FCFA" sub="Ce mois" icon={<TrendingUp className="w-5 h-5" />} color="bg-teal-100 text-teal-600" />
+        <StatCard label="D├®clarations re├ºues" value={declarationsData.length} sub="Ce mois" icon={<FileText className="w-5 h-5" />} color="bg-blue-100 text-blue-600" />
+        <StatCard label="En attente" value={declarationsData.filter(d => d.statut === 'En attente').length} icon={<Clock className="w-5 h-5" />} color="bg-orange-100 text-orange-600" />
+        <StatCard label="En retard" value={declarationsData.filter(d => d.statut === 'En retard').length} icon={<AlertCircle className="w-5 h-5" />} color="bg-red-100 text-red-600" />
+        <StatCard label="Total encaiss├®" value="ÔÇö FCFA" sub="Ce mois" icon={<TrendingUp className="w-5 h-5" />} color="bg-teal-100 text-teal-600" />
       </div>
 
+      {declarationsError && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{declarationsError}</div>}
+      {actionMessage && <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">{actionMessage}</div>}
+
       <div>
-        <SearchBar placeholder="Rechercher par référence ou employeur..." />
+        <SearchBar placeholder="Rechercher par r├®f├®rence ou employeur..." />
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Référence', 'Employeur', 'Période', 'Montant', 'Échéance', 'Statut', 'Actions'].map(h => (
+                {['R├®f├®rence', 'Employeur', 'P├®riode', 'Montant', '├ëch├®ance', 'Statut', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {declarations.map(d => (
-                <tr key={d.ref} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-xs text-gray-600">{d.ref}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-900 text-xs">{d.employeur}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{d.periode}</td>
-                  <td className="px-4 py-3 text-gray-900 font-medium text-xs">{d.montant} FCFA</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{d.echeance}</td>
-                  <td className="px-4 py-3">{statusBadge(d.statut)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button className="p-1 text-gray-400 hover:text-blue-600"><Eye className="w-4 h-4" /></button>
-                      {d.statut === 'En attente' && <button className="p-1 text-gray-400 hover:text-green-600"><CheckCircle className="w-4 h-4" /></button>}
-                    </div>
-                  </td>
+              {isLoadingDeclarations ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">Chargement des d├®clarations...</td>
                 </tr>
-              ))}
+              ) : declarationsData.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">Aucune d├®claration disponible.</td>
+                </tr>
+              ) : (
+                declarationsData.map(d => (
+                  <tr key={d.ref} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{d.ref}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900 text-xs">{d.employeur}</td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">{d.periode}</td>
+                    <td className="px-4 py-3 text-gray-900 font-medium text-xs">{d.montant} FCFA</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">{d.echeance}</td>
+                    <td className="px-4 py-3">{statusBadge(d.statut)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button className="p-1 text-gray-400 hover:text-blue-600" title="Voir les d├®tails" aria-label="Voir les d├®tails">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {d.statut === 'En attente' && (
+                          <button
+                            onClick={() => handleValiderDeclaration(d.id)}
+                            disabled={actionLoading === d.id}
+                            className="p-1 text-gray-400 hover:text-green-600 disabled:opacity-50"
+                            title="Valider"
+                            aria-label="Valider"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                        {d.statut !== 'V├®rifi├®e' && d.statut !== 'Pay├®e' && (
+                          <button
+                            onClick={() => handleRelancerCotisation(d.id)}
+                            disabled={actionLoading === d.id}
+                            className="p-1 text-gray-400 hover:text-blue-600 disabled:opacity-50"
+                            title="Relancer"
+                            aria-label="Relancer"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -939,19 +915,32 @@ function AgentCotisation() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-gray-900">Employeurs en retard</h3>
-          <button className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">
+          <button
+            onClick={() => setActionMessage('Relance globale lanc├®e pour les employeurs en retard.')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700"
+            type="button"
+          >
             <Send className="w-4 h-4" />Relancer tous
           </button>
         </div>
         <div className="space-y-3">
-          {([] as { nom: string; retard: string; montant: string; dernierContact: string }[]).map((e, i) => (
-            <div key={i} className="flex items-center gap-4 p-3 border border-red-100 rounded-lg bg-red-50">
+          {declarationsData.filter(d => d.statut === 'En retard').length === 0 ? (
+            <div className="p-4 rounded-lg bg-green-50 text-sm text-green-700">Aucun employeur en retard identifi├®.</div>
+          ) : declarationsData.filter(d => d.statut === 'En retard').map((e, i) => (
+            <div key={`${e.ref}-${i}`} className="flex items-center gap-4 p-3 border border-red-100 rounded-lg bg-red-50">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-gray-900">{e.nom}</p>
-                <p className="text-xs text-gray-600">Retard: <span className="text-red-600 font-semibold">{e.retard}</span> · {e.montant}</p>
+                <p className="font-bold text-sm text-gray-900">{e.employeur}</p>
+                <p className="text-xs text-gray-600">R├®f├®rence: {e.ref} ┬À ├ëch├®ance: {e.echeance}</p>
               </div>
-              <button className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">Relancer</button>
+              <button
+                onClick={() => handleRelancerCotisation(e.id)}
+                disabled={actionLoading === e.id}
+                className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                type="button"
+              >
+                Relancer
+              </button>
             </div>
           ))}
         </div>
@@ -960,16 +949,16 @@ function AgentCotisation() {
   );
 }
 
-// ─── Agent Prestations ────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Agent Prestations ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 const demandesPrest: {
   id: string; nom: string; type: string; date: string;
-  statut: 'En attente' | 'En cours' | 'Approuvée' | 'Rejetée';
+  statut: 'En attente' | 'En cours' | 'Approuv├®e' | 'Rejet├®e';
 }[] = [];
 
 function AgentPrestations() {
   const statusBadge = (s: typeof demandesPrest[0]['statut']) => {
-    const map = { 'En attente': 'orange', 'En cours': 'blue', 'Approuvée': 'green', 'Rejetée': 'red' } as const;
+    const map = { 'En attente': 'orange', 'En cours': 'blue', 'Approuv├®e': 'green', 'Rejet├®e': 'red' } as const;
     return <Badge label={s} variant={map[s]} />;
   };
 
@@ -978,19 +967,19 @@ function AgentPrestations() {
       <SectionHeader title="Prestations" sub="Instruction et paiement des prestations sociales" />
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Demandes reçues" value={demandesPrest.length} sub="Ce mois" icon={<Heart className="w-5 h-5" />} color="bg-pink-100 text-pink-600" />
+        <StatCard label="Demandes re├ºues" value={demandesPrest.length} sub="Ce mois" icon={<Heart className="w-5 h-5" />} color="bg-pink-100 text-pink-600" />
         <StatCard label="En attente" value={demandesPrest.filter(d => d.statut === 'En attente').length} icon={<Clock className="w-5 h-5" />} color="bg-orange-100 text-orange-600" />
-        <StatCard label="Approuvées" value={demandesPrest.filter(d => d.statut === 'Approuvée').length} icon={<CheckCircle className="w-5 h-5" />} color="bg-green-100 text-green-600" />
-        <StatCard label="Total versé" value="— FCFA" sub="Ce mois" icon={<CreditCard className="w-5 h-5" />} color="bg-blue-100 text-blue-600" />
+        <StatCard label="Approuv├®es" value={demandesPrest.filter(d => d.statut === 'Approuv├®e').length} icon={<CheckCircle className="w-5 h-5" />} color="bg-green-100 text-green-600" />
+        <StatCard label="Total vers├®" value="ÔÇö FCFA" sub="Ce mois" icon={<CreditCard className="w-5 h-5" />} color="bg-blue-100 text-blue-600" />
       </div>
 
       <div>
-        <SearchBar placeholder="Rechercher par bénéficiaire ou type de prestation..." />
+        <SearchBar placeholder="Rechercher par b├®n├®ficiaire ou type de prestation..." />
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Référence', 'Bénéficiaire', 'Type', 'Date', 'Statut', 'Actions'].map(h => (
+                {['R├®f├®rence', 'B├®n├®ficiaire', 'Type', 'Date', 'Statut', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -1005,11 +994,15 @@ function AgentPrestations() {
                   <td className="px-4 py-3">{statusBadge(d.statut)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button className="p-1 text-gray-400 hover:text-blue-600"><Eye className="w-4 h-4" /></button>
+                      <button className="p-1 text-gray-400 hover:text-blue-600" title="Voir les d├®tails" aria-label="Voir les d├®tails"><Eye className="w-4 h-4" /></button>
                       {d.statut === 'En attente' && (
                         <>
-                          <button className="p-1 text-gray-400 hover:text-green-600"><CheckCircle className="w-4 h-4" /></button>
-                          <button className="p-1 text-gray-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
+                          <button className="p-1 text-gray-400 hover:text-green-600" title="Approuver" aria-label="Approuver">
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                          <button className="p-1 text-gray-400 hover:text-red-600" title="Rejeter" aria-label="Rejeter">
+                            <XCircle className="w-4 h-4" />
+                          </button>
                         </>
                       )}
                     </div>
@@ -1023,7 +1016,7 @@ function AgentPrestations() {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-gray-900">Paiements à effectuer</h3>
+          <h3 className="font-bold text-gray-900">Paiements ├á effectuer</h3>
           <button className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">
             <CreditCard className="w-4 h-4" />Traiter tous
           </button>
@@ -1034,7 +1027,7 @@ function AgentPrestations() {
               <CreditCard className="w-5 h-5 text-green-600 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm text-gray-900">{p.nom}</p>
-                <p className="text-xs text-gray-500">{p.type} · {p.methode}</p>
+                <p className="text-xs text-gray-500">{p.type} ┬À {p.methode}</p>
               </div>
               <div className="text-right">
                 <p className="font-bold text-sm text-gray-900">{p.montant}</p>
@@ -1048,10 +1041,10 @@ function AgentPrestations() {
   );
 }
 
-// ─── Agent Support ────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Agent Support ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 function AgentSupport() {
-  const tickets: { id: string; user: string; sujet: string; date: string; priorite: string; statut: 'Ouvert' | 'En cours' | 'Résolu' }[] = [];
+  const tickets: { id: string; user: string; sujet: string; date: string; priorite: string; statut: 'Ouvert' | 'En cours' | 'R├®solu' }[] = [];
 
   const prioriteVariant = (p: string): BadgeVariant => {
     if (p === 'Critique') return 'red';
@@ -1068,12 +1061,12 @@ function AgentSupport() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Support & Contenu" sub="Gestion des tickets, FAQ et actualités" />
+      <SectionHeader title="Support & Contenu" sub="Gestion des tickets, FAQ et actualit├®s" />
 
       <div className="grid sm:grid-cols-3 gap-4">
         <StatCard label="Tickets ouverts" value={tickets.filter(t => t.statut === 'Ouvert').length} icon={<MessageSquare className="w-5 h-5" />} color="bg-orange-100 text-orange-600" />
         <StatCard label="Articles FAQ" value={0} icon={<BookOpen className="w-5 h-5" />} color="bg-blue-100 text-blue-600" />
-        <StatCard label="Actualités publiées" value={0} sub="Ce mois" icon={<Newspaper className="w-5 h-5" />} color="bg-green-100 text-green-600" />
+        <StatCard label="Actualit├®s publi├®es" value={0} sub="Ce mois" icon={<Newspaper className="w-5 h-5" />} color="bg-green-100 text-green-600" />
       </div>
 
       <div>
@@ -1087,7 +1080,7 @@ function AgentSupport() {
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
                     <p className="font-semibold text-sm text-gray-900">{t.sujet}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{t.id} · {t.user} · {t.date}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{t.id} ┬À {t.user} ┬À {t.date}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge label={t.priorite} variant={prioriteVariant(t.priorite)} />
@@ -1095,7 +1088,9 @@ function AgentSupport() {
                   </div>
                 </div>
               </div>
-              <button className="p-1 text-gray-400 hover:text-blue-600"><ChevronRight className="w-5 h-5" /></button>
+              <button className="p-1 text-gray-400 hover:text-blue-600" title="Voir les d├®tails" aria-label="Voir les d├®tails">
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
           ))}
         </div>
@@ -1115,7 +1110,9 @@ function AgentSupport() {
                   <p className="font-medium text-xs text-gray-900 truncate">{f.question}</p>
                   <p className="text-xs text-gray-400">{f.vues.toLocaleString()} vues</p>
                 </div>
-                <button className="p-1 text-gray-400 hover:text-blue-600"><Edit className="w-3 h-3" /></button>
+                <button className="p-1 text-gray-400 hover:text-blue-600" title="Modifier" aria-label="Modifier">
+                  <Edit className="w-3 h-3" />
+                </button>
               </div>
             ))}
           </div>
@@ -1123,7 +1120,7 @@ function AgentSupport() {
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-gray-900">Actualités</h3>
+            <h3 className="font-bold text-gray-900">Actualit├®s</h3>
             <button className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">+ Nouvelle</button>
           </div>
           <div className="space-y-3">
@@ -1134,7 +1131,7 @@ function AgentSupport() {
                   <p className="font-medium text-xs text-gray-900 truncate">{a.titre}</p>
                   <p className="text-xs text-gray-400">{a.vues > 0 ? `${a.vues} vues` : 'Brouillon'}</p>
                 </div>
-                <Badge label={a.statut} variant={a.statut === 'Publiée' ? 'green' : 'gray'} />
+                <Badge label={a.statut} variant={a.statut === 'Publi├®e' ? 'green' : 'gray'} />
               </div>
             ))}
           </div>
@@ -1144,21 +1141,21 @@ function AgentSupport() {
   );
 }
 
-// ─── Administrateur ───────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Administrateur ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 const compteAgents: {
   id: string; nom: string; email: string; role: RoleId; statut: string; derniere: string;
 }[] = [
   { id: 'AG001', nom: 'TOKPANOU Brice', email: 'b.tokpanou@cnss.bj', role: 'immatriculation', statut: 'Actif', derniere: '17/06/2026 09:15' },
-  { id: 'AG002', nom: 'ABLO Nadège', email: 'n.ablo@cnss.bj', role: 'employeur', statut: 'Actif', derniere: '17/06/2026 08:42' },
-  { id: 'AG003', nom: 'DÈDÈ Rodrigue', email: 'r.dede@cnss.bj', role: 'cotisation', statut: 'Actif', derniere: '17/06/2026 10:03' },
-  { id: 'AG004', nom: 'FASSINOU Pélagie', email: 'p.fassinou@cnss.bj', role: 'prestations', statut: 'Actif', derniere: '17/06/2026 09:28' },
-  { id: 'AG005', nom: 'GANDONOU Stéphane', email: 's.gandonou@cnss.bj', role: 'support', statut: 'Actif', derniere: '17/06/2026 07:55' },
+  { id: 'AG002', nom: 'ABLO Nad├¿ge', email: 'n.ablo@cnss.bj', role: 'employeur', statut: 'Actif', derniere: '17/06/2026 08:42' },
+  { id: 'AG003', nom: 'D├êD├ê Rodrigue', email: 'r.dede@cnss.bj', role: 'cotisation', statut: 'Actif', derniere: '17/06/2026 10:03' },
+  { id: 'AG004', nom: 'FASSINOU P├®lagie', email: 'p.fassinou@cnss.bj', role: 'prestations', statut: 'Actif', derniere: '17/06/2026 09:28' },
+  { id: 'AG005', nom: 'GANDONOU St├®phane', email: 's.gandonou@cnss.bj', role: 'support', statut: 'Actif', derniere: '17/06/2026 07:55' },
   { id: 'AG006', nom: 'AZONDEKON Lucie', email: 'l.azondekon@cnss.bj', role: 'admin', statut: 'Actif', derniere: '17/06/2026 10:20' },
-  { id: 'AG007', nom: 'KPADE Séverin', email: 's.kpade@cnss.bj', role: 'immatriculation', statut: 'Actif', derniere: '16/06/2026 18:12' },
+  { id: 'AG007', nom: 'KPADE S├®verin', email: 's.kpade@cnss.bj', role: 'immatriculation', statut: 'Actif', derniere: '16/06/2026 18:12' },
   { id: 'AG008', nom: 'HOUNDJO Armelle', email: 'a.houndjo@cnss.bj', role: 'employeur', statut: 'Inactif', derniere: '10/06/2026 14:25' },
   { id: 'AG009', nom: 'ASSANI Marcel', email: 'm.assani@cnss.bj', role: 'cotisation', statut: 'Actif', derniere: '17/06/2026 09:47' },
-  { id: 'AG010', nom: 'DOSSA Françoise', email: 'f.dossa@cnss.bj', role: 'prestations', statut: 'Actif', derniere: '17/06/2026 08:18' },
+  { id: 'AG010', nom: 'DOSSA Fran├ºoise', email: 'f.dossa@cnss.bj', role: 'prestations', statut: 'Actif', derniere: '17/06/2026 08:18' },
   { id: 'AG011', nom: 'SOGLO Patrick', email: 'p.soglo@cnss.bj', role: 'support', statut: 'Inactif', derniere: '01/06/2026 16:40' },
 ];
 
@@ -1166,13 +1163,13 @@ const auditLog: {
   id: string; user: string; action: string; date: string; service: string;
 }[] = [
   { id: 'LOG001', user: 'TOKPANOU Brice', action: 'Validation demande immatriculation employeur SARL BENIN TELECOM', date: '17/06 10:05', service: 'Immatriculation' },
-  { id: 'LOG002', user: 'DÈDÈ Rodrigue', action: 'Vérification déclaration cotisation CFAO MOTORS', date: '17/06 09:58', service: 'Cotisation' },
-  { id: 'LOG003', user: 'FASSINOU Pélagie', action: 'Approbation prestation familiale GBEDJI Monique', date: '17/06 09:42', service: 'Prestations' },
-  { id: 'LOG004', user: 'ABLO Nadège', action: 'Modification fiche employeur SOCIETE GENERALE BENIN', date: '17/06 09:30', service: 'Gestion employeurs' },
-  { id: 'LOG005', user: 'GANDONOU Stéphane', action: 'Résolution ticket #TK-2026-0547', date: '17/06 09:12', service: 'Support' },
+  { id: 'LOG002', user: 'D├êD├ê Rodrigue', action: 'V├®rification d├®claration cotisation CFAO MOTORS', date: '17/06 09:58', service: 'Cotisation' },
+  { id: 'LOG003', user: 'FASSINOU P├®lagie', action: 'Approbation prestation familiale GBEDJI Monique', date: '17/06 09:42', service: 'Prestations' },
+  { id: 'LOG004', user: 'ABLO Nad├¿ge', action: 'Modification fiche employeur SOCIETE GENERALE BENIN', date: '17/06 09:30', service: 'Gestion employeurs' },
+  { id: 'LOG005', user: 'GANDONOU St├®phane', action: 'R├®solution ticket #TK-2026-0547', date: '17/06 09:12', service: 'Support' },
   { id: 'LOG006', user: 'TOKPANOU Brice', action: 'Rejet demande immatriculation ONG ESPOIR NOUVEAU (documents incomplets)', date: '17/06 08:55', service: 'Immatriculation' },
-  { id: 'LOG007', user: 'AZONDEKON Lucie', action: 'Création compte agent ASSANI Marcel', date: '17/06 08:20', service: 'Administration' },
-  { id: 'LOG008', user: 'DÈDÈ Rodrigue', action: 'Relance employeurs en retard (42 notifications envoyées)', date: '17/06 08:00', service: 'Cotisation' },
+  { id: 'LOG007', user: 'AZONDEKON Lucie', action: 'Cr├®ation compte agent ASSANI Marcel', date: '17/06 08:20', service: 'Administration' },
+  { id: 'LOG008', user: 'D├êD├ê Rodrigue', action: 'Relance employeurs en retard (42 notifications envoy├®es)', date: '17/06 08:00', service: 'Cotisation' },
 ];
 
 const systemStats = {
@@ -1201,19 +1198,19 @@ const systemStats = {
 };
 
 const categoriesEmployeurs = [
-  { name: 'Société', value: 1245, color: '#4A90E2' },
-  { name: 'Établissement', value: 458, color: '#50C878' },
-  { name: 'École', value: 287, color: '#FFB84D' },
-  { name: 'Cabinet/Étude', value: 165, color: '#9B59B6' },
+  { name: 'Soci├®t├®', value: 1245, color: '#4A90E2' },
+  { name: '├ëtablissement', value: 458, color: '#50C878' },
+  { name: '├ëcole', value: 287, color: '#FFB84D' },
+  { name: 'Cabinet/├ëtude', value: 165, color: '#9B59B6' },
   { name: 'ONG/Association', value: 132, color: '#E74C3C' },
-  { name: 'Structure étatique', value: 78, color: '#3498DB' },
-  { name: 'Église', value: 32, color: '#1ABC9C' },
+  { name: 'Structure ├®tatique', value: 78, color: '#3498DB' },
+  { name: '├ëglise', value: 32, color: '#1ABC9C' },
   { name: 'Gens de maison', value: 18, color: '#F39C12' },
   { name: 'Assurance volontaire', value: 3, color: '#E67E22' },
 ];
 
 const cotisationsData = [
-  { name: 'À jour', value: 2156, color: '#50C878' },
+  { name: '├Ç jour', value: 2156, color: '#50C878' },
   { name: 'En retard', value: 42, color: '#E74C3C' },
   { name: 'En cours', value: 49, color: '#FFB84D' },
 ];
@@ -1239,10 +1236,10 @@ function AdminDashboard() {
   const [editingAgent, setEditingAgent] = useState<string | null>(null);
 
   const tabs = [
-    { id: 'supervision' as AdminTab, label: 'Supervision générale', icon: <Activity className="w-4 h-4" /> },
+    { id: 'supervision' as AdminTab, label: 'Supervision g├®n├®rale', icon: <Activity className="w-4 h-4" /> },
     { id: 'utilisateurs' as AdminTab, label: 'Gestion utilisateurs', icon: <Users className="w-4 h-4" /> },
     { id: 'statistiques' as AdminTab, label: 'Statistiques globales', icon: <BarChart2 className="w-4 h-4" /> },
-    { id: 'parametres' as AdminTab, label: 'Paramètres système', icon: <Settings className="w-4 h-4" /> },
+    { id: 'parametres' as AdminTab, label: 'Param├¿tres syst├¿me', icon: <Settings className="w-4 h-4" /> },
   ];
 
   const getRoleInfo = (roleId: RoleId) => ROLES.find(r => r.id === roleId)!;
@@ -1260,20 +1257,20 @@ function AdminDashboard() {
 
       {tab === 'supervision' && (
         <div className="space-y-6">
-          <SectionHeader title="Supervision générale" sub="Vue d'ensemble de toutes les activités CNSS" />
+          <SectionHeader title="Supervision g├®n├®rale" sub="Vue d'ensemble de toutes les activit├®s CNSS" />
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <StatCard label="Employeurs immatriculés" value={systemStats.totalEmployeurs.toLocaleString()} sub={`${systemStats.employeursActifs} actifs`} icon={<Users className="w-5 h-5" />} color="bg-violet-100 text-violet-600" />
+            <StatCard label="Employeurs immatricul├®s" value={systemStats.totalEmployeurs.toLocaleString()} sub={`${systemStats.employeursActifs} actifs`} icon={<Users className="w-5 h-5" />} color="bg-violet-100 text-violet-600" />
             <StatCard label="Travailleurs actifs" value={systemStats.travailleursActifs.toLocaleString()} sub={`Total: ${systemStats.totalTravailleurs.toLocaleString()}`} icon={<UserPlus className="w-5 h-5" />} color="bg-blue-100 text-blue-600" />
-            <StatCard label="Déclarations cotisation" value={systemStats.demandesEnAttente.cotisation} sub="En attente" icon={<FileText className="w-5 h-5" />} color="bg-orange-100 text-orange-600" />
-            <StatCard label="Demandes prestations" value={systemStats.demandesEnAttente.prestations} sub="À instruire" icon={<Heart className="w-5 h-5" />} color="bg-pink-100 text-pink-600" />
+            <StatCard label="D├®clarations cotisation" value={systemStats.demandesEnAttente.cotisation} sub="En attente" icon={<FileText className="w-5 h-5" />} color="bg-orange-100 text-orange-600" />
+            <StatCard label="Demandes prestations" value={systemStats.demandesEnAttente.prestations} sub="├Ç instruire" icon={<Heart className="w-5 h-5" />} color="bg-pink-100 text-pink-600" />
             <StatCard label="Tickets support" value={systemStats.demandesEnAttente.support} sub="Ouverts" icon={<MessageSquare className="w-5 h-5" />} color="bg-teal-100 text-teal-600" />
           </div>
 
           {/* Statistiques circulaires */}
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <h3 className="font-bold text-gray-900 mb-2 text-center">Employeurs par catégorie</h3>
+              <h3 className="font-bold text-gray-900 mb-2 text-center">Employeurs par cat├®gorie</h3>
               <div className="w-full h-[280px] flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -1374,7 +1371,7 @@ function AdminDashboard() {
 
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-4">Activité par service</h3>
+              <h3 className="font-bold text-gray-900 mb-4">Activit├® par service</h3>
               <div className="space-y-3">
                 {activiteParService.map((s, i) => (
                   <div key={i} className="flex items-center gap-3">
@@ -1411,14 +1408,14 @@ function AdminDashboard() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-            <h3 className="font-bold text-gray-900 mb-4">Journal d'activité récente</h3>
+            <h3 className="font-bold text-gray-900 mb-4">Journal d'activit├® r├®cente</h3>
             <div className="space-y-2">
               {auditLog.map(l => (
                 <div key={l.id} className="flex items-start gap-3 text-sm py-3 border-b border-gray-50 last:border-0">
                   <Activity className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold text-gray-900">{l.user}</span>
-                    <span className="text-gray-500"> — {l.action}</span>
+                    <span className="text-gray-500"> ÔÇö {l.action}</span>
                     <div className="mt-0.5">
                       <Badge label={l.service} variant="blue" />
                     </div>
@@ -1433,9 +1430,9 @@ function AdminDashboard() {
 
       {tab === 'utilisateurs' && (
         <div className="space-y-4">
-          <SectionHeader title="Gestion des utilisateurs" sub={`${compteAgents.length} comptes agents enregistrés`} action={
+          <SectionHeader title="Gestion des utilisateurs" sub={`${compteAgents.length} comptes agents enregistr├®s`} action={
             <button className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">
-              <Plus className="w-4 h-4" />Créer un compte
+              <Plus className="w-4 h-4" />Cr├®er un compte
             </button>
           } />
           <SearchBar placeholder="Rechercher un agent..." />
@@ -1443,7 +1440,7 @@ function AdminDashboard() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {['Agent', 'Email', 'Profil / Rôle', 'Statut', 'Dernière connexion', 'Actions'].map(h => (
+                  {['Agent', 'Email', 'Profil / R├┤le', 'Statut', 'Derni├¿re connexion', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -1467,6 +1464,7 @@ function AdminDashboard() {
                           <select
                             defaultValue={a.role}
                             onBlur={() => setEditingAgent(null)}
+                            aria-label="Changer le r├┤le de l'agent"
                             className="text-xs border border-blue-400 rounded px-2 py-1 focus:outline-none"
                           >
                             {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
@@ -1484,13 +1482,13 @@ function AdminDashboard() {
                       <td className="px-4 py-3 text-gray-400 text-xs">{a.derniere}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <button className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Réinitialiser mot de passe">
+                          <button className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="R├®initialiser mot de passe" aria-label="R├®initialiser mot de passe">
                             <Key className="w-4 h-4" />
                           </button>
-                          <button className="p-1.5 text-gray-400 hover:text-orange-600 transition-colors" title="Modifier">
+                          <button className="p-1.5 text-gray-400 hover:text-orange-600 transition-colors" title="Modifier" aria-label="Modifier">
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Désactiver">
+                          <button className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="D├®sactiver" aria-label="D├®sactiver">
                             <XCircle className="w-4 h-4" />
                           </button>
                         </div>
@@ -1504,7 +1502,7 @@ function AdminDashboard() {
 
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 mb-4">Répartition par profil</h3>
+              <h3 className="font-bold text-gray-900 mb-4">R├®partition par profil</h3>
               <div className="space-y-3">
                 {ROLES.filter(r => r.id !== 'admin').map(role => {
                   const count = compteAgents.filter(a => a.role === role.id).length;
@@ -1543,9 +1541,9 @@ function AdminDashboard() {
                         <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900">{a.nom}</p>
-                          <p className="text-xs text-gray-500">{roleInfo.label} · Dernière connexion: {a.derniere}</p>
+                          <p className="text-xs text-gray-500">{roleInfo.label} ┬À Derni├¿re connexion: {a.derniere}</p>
                         </div>
-                        <button className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">Réactiver</button>
+                        <button className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700">R├®activer</button>
                       </div>
                     );
                   })}
@@ -1560,7 +1558,7 @@ function AdminDashboard() {
 
       {tab === 'statistiques' && (
         <div className="space-y-6">
-          <SectionHeader title="Statistiques globales" sub="Indicateurs de performance du système CNSS" />
+          <SectionHeader title="Statistiques globales" sub="Indicateurs de performance du syst├¿me CNSS" />
 
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
@@ -1570,7 +1568,7 @@ function AdminDashboard() {
               </div>
               <p className="text-4xl font-bold mb-2">{parseInt(systemStats.cotisationsCeMois.montantTotal).toLocaleString()} FCFA</p>
               <div className="space-y-1 text-sm opacity-90">
-                <p>{systemStats.cotisationsCeMois.declarationsRecues.toLocaleString()} déclarations reçues</p>
+                <p>{systemStats.cotisationsCeMois.declarationsRecues.toLocaleString()} d├®clarations re├ºues</p>
                 <p>Taux de recouvrement: <span className="font-bold">{systemStats.cotisationsCeMois.tauxRecouvrement}%</span></p>
                 <p className="text-red-200">{systemStats.cotisationsCeMois.enRetard} employeurs en retard</p>
               </div>
@@ -1583,9 +1581,9 @@ function AdminDashboard() {
               </div>
               <p className="text-4xl font-bold mb-2">{parseInt(systemStats.prestationsCeMois.montantVerse).toLocaleString()} FCFA</p>
               <div className="space-y-1 text-sm opacity-90">
-                <p>{systemStats.prestationsCeMois.demandes} demandes reçues</p>
-                <p>{systemStats.prestationsCeMois.approuvees} approuvées</p>
-                <p>Délai moyen: <span className="font-bold">{systemStats.prestationsCeMois.delaiMoyen} jours</span></p>
+                <p>{systemStats.prestationsCeMois.demandes} demandes re├ºues</p>
+                <p>{systemStats.prestationsCeMois.approuvees} approuv├®es</p>
+                <p>D├®lai moyen: <span className="font-bold">{systemStats.prestationsCeMois.delaiMoyen} jours</span></p>
               </div>
             </div>
 
@@ -1598,19 +1596,19 @@ function AdminDashboard() {
               <div className="space-y-1 text-sm opacity-90">
                 <p>Total agents: {compteAgents.length}</p>
                 <p>Comptes inactifs: {compteAgents.filter(a => a.statut === 'Inactif').length}</p>
-                <p>Taux d'activité: <span className="font-bold">{Math.round((compteAgents.filter(a => a.statut === 'Actif').length / compteAgents.length) * 100)}%</span></p>
+                <p>Taux d'activit├®: <span className="font-bold">{Math.round((compteAgents.filter(a => a.statut === 'Actif').length / compteAgents.length) * 100)}%</span></p>
               </div>
             </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <h3 className="font-bold text-gray-900 mb-4">Évolution des immatriculations</h3>
+              <h3 className="font-bold text-gray-900 mb-4">├ëvolution des immatriculations</h3>
               <div className="h-64 flex items-center justify-center text-gray-400">
                 <div className="text-center">
                   <BarChart2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Graphique d'évolution mensuelle</p>
-                  <p className="text-xs mt-1">Données disponibles après intégration backend</p>
+                  <p className="text-sm">Graphique d'├®volution mensuelle</p>
+                  <p className="text-xs mt-1">Donn├®es disponibles apr├¿s int├®gration backend</p>
                 </div>
               </div>
             </div>
@@ -1621,7 +1619,7 @@ function AdminDashboard() {
                 <div className="text-center">
                   <Activity className="w-12 h-12 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Indicateurs de satisfaction usagers</p>
-                  <p className="text-xs mt-1">Données disponibles après intégration backend</p>
+                  <p className="text-xs mt-1">Donn├®es disponibles apr├¿s int├®gration backend</p>
                 </div>
               </div>
             </div>
@@ -1640,12 +1638,17 @@ function AdminDashboard() {
                 <div key={i} className="flex items-center gap-4">
                   <div className="w-40 flex-shrink-0">
                     <p className="text-sm font-semibold text-gray-900">{s.service}</p>
-                    <p className="text-xs text-gray-500">Délai moyen: {s.delai}</p>
+                    <p className="text-xs text-gray-500">D├®lai moyen: {s.delai}</p>
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={`h-full ${s.couleur}`} style={{ width: `${s.taux}%` }} />
+                        <progress
+                          className={`w-full h-full rounded-full appearance-none ${s.couleur}`}
+                          value={s.taux}
+                          max={100}
+                          aria-label={`Barre de progression ${s.service}`}
+                        />
                       </div>
                       <span className="text-sm font-bold text-gray-900 w-12 text-right">{s.taux}%</span>
                     </div>
@@ -1659,7 +1662,7 @@ function AdminDashboard() {
 
       {tab === 'parametres' && (
         <div className="space-y-6">
-          <SectionHeader title="Paramètres système" sub="Configuration générale de la plateforme CNSS" />
+          <SectionHeader title="Param├¿tres syst├¿me" sub="Configuration g├®n├®rale de la plateforme CNSS" />
 
           <div className="grid md:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
@@ -1668,14 +1671,14 @@ function AdminDashboard() {
                   <Shield className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Sécurité et accès</h3>
+                  <h3 className="font-bold text-gray-900">S├®curit├® et acc├¿s</h3>
                   <p className="text-xs text-gray-500">Gestion des permissions et authentification</p>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Authentification à deux facteurs</p>
+                    <p className="text-sm font-semibold text-gray-900">Authentification ├á deux facteurs</p>
                     <p className="text-xs text-gray-500">Obligatoire pour les agents</p>
                   </div>
                   <div className="w-10 h-6 bg-green-500 rounded-full relative cursor-pointer">
@@ -1684,10 +1687,10 @@ function AdminDashboard() {
                 </div>
                 <div className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Durée de session</p>
-                    <p className="text-xs text-gray-500">Déconnexion automatique après inactivité</p>
+                    <p className="text-sm font-semibold text-gray-900">Dur├®e de session</p>
+                    <p className="text-xs text-gray-500">D├®connexion automatique apr├¿s inactivit├®</p>
                   </div>
-                  <select className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white">
+                  <select aria-label="Dur├®e de session" className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white">
                     <option>30 minutes</option>
                     <option>1 heure</option>
                     <option>2 heures</option>
@@ -1695,10 +1698,10 @@ function AdminDashboard() {
                 </div>
                 <div className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Complexité mot de passe</p>
-                    <p className="text-xs text-gray-500">Minimum 12 caractères, majuscules, chiffres, symboles</p>
+                    <p className="text-sm font-semibold text-gray-900">Complexit├® mot de passe</p>
+                    <p className="text-xs text-gray-500">Minimum 12 caract├¿res, majuscules, chiffres, symboles</p>
                   </div>
-                  <Badge label="Élevée" variant="green" />
+                  <Badge label="├ëlev├®e" variant="green" />
                 </div>
               </div>
             </div>
@@ -1710,7 +1713,7 @@ function AdminDashboard() {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900">Notifications</h3>
-                  <p className="text-xs text-gray-500">Configuration des alertes système</p>
+                  <p className="text-xs text-gray-500">Configuration des alertes syst├¿me</p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -1735,7 +1738,7 @@ function AdminDashboard() {
                 <div className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
                   <div>
                     <p className="text-sm font-semibold text-gray-900">SMS automatiques</p>
-                    <p className="text-xs text-gray-500">Rappels par SMS pour échéances critiques</p>
+                    <p className="text-xs text-gray-500">Rappels par SMS pour ├®ch├®ances critiques</p>
                   </div>
                   <div className="w-10 h-6 bg-gray-300 rounded-full relative cursor-pointer">
                     <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full" />
@@ -1750,14 +1753,14 @@ function AdminDashboard() {
                   <Settings className="w-5 h-5 text-purple-600" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Configuration générale</h3>
-                  <p className="text-xs text-gray-500">Paramètres de la plateforme</p>
+                  <h3 className="font-bold text-gray-900">Configuration g├®n├®rale</h3>
+                  <p className="text-xs text-gray-500">Param├¿tres de la plateforme</p>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="p-3 border border-gray-100 rounded-lg">
                   <p className="text-sm font-semibold text-gray-900 mb-2">Mode maintenance</p>
-                  <p className="text-xs text-gray-500 mb-3">Désactiver temporairement l'accès public</p>
+                  <p className="text-xs text-gray-500 mb-3">D├®sactiver temporairement l'acc├¿s public</p>
                   <button className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700">
                     <AlertCircle className="w-3.5 h-3.5" />
                     Activer le mode maintenance
@@ -1765,8 +1768,8 @@ function AdminDashboard() {
                 </div>
                 <div className="p-3 border border-gray-100 rounded-lg">
                   <p className="text-sm font-semibold text-gray-900 mb-2">Sauvegarde automatique</p>
-                  <p className="text-xs text-gray-500 mb-2">Dernière sauvegarde: 17/06/2026 à 03:00</p>
-                  <Badge label="Activée - Quotidienne" variant="green" />
+                  <p className="text-xs text-gray-500 mb-2">Derni├¿re sauvegarde: 17/06/2026 ├á 03:00</p>
+                  <Badge label="Activ├®e - Quotidienne" variant="green" />
                 </div>
               </div>
             </div>
@@ -1778,21 +1781,21 @@ function AdminDashboard() {
                 </div>
                 <div>
                   <h3 className="font-bold text-gray-900">Journaux et audit</h3>
-                  <p className="text-xs text-gray-500">Traçabilité des actions</p>
+                  <p className="text-xs text-gray-500">Tra├ºabilit├® des actions</p>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Actions enregistrées aujourd'hui</p>
-                    <p className="text-xs text-gray-500">Toutes les opérations critiques</p>
+                    <p className="text-sm font-semibold text-gray-900">Actions enregistr├®es aujourd'hui</p>
+                    <p className="text-xs text-gray-500">Toutes les op├®rations critiques</p>
                   </div>
                   <span className="text-lg font-bold text-gray-900">{auditLog.length}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Rétention des logs</p>
-                    <p className="text-xs text-gray-500">Conservation légale</p>
+                    <p className="text-sm font-semibold text-gray-900">R├®tention des logs</p>
+                    <p className="text-xs text-gray-500">Conservation l├®gale</p>
                   </div>
                   <Badge label="5 ans" variant="blue" />
                 </div>
@@ -1812,11 +1815,11 @@ function AdminDashboard() {
               <div className="flex-1">
                 <h3 className="font-bold text-gray-900 mb-2">Zone d'administration critique</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Les modifications des paramètres système nécessitent une validation par deux administrateurs et sont enregistrées dans le journal d'audit.
+                  Les modifications des param├¿tres syst├¿me n├®cessitent une validation par deux administrateurs et sont enregistr├®es dans le journal d'audit.
                 </p>
                 <div className="flex items-center gap-3">
-                  <Badge label="Niveau d'accès: Administrateur" variant="red" />
-                  <span className="text-xs text-gray-500">Dernière modification: 15/06/2026 par AZONDEKON Lucie</span>
+                  <Badge label="Niveau d'acc├¿s: Administrateur" variant="red" />
+                  <span className="text-xs text-gray-500">Derni├¿re modification: 15/06/2026 par AZONDEKON Lucie</span>
                 </div>
               </div>
             </div>
@@ -1827,7 +1830,7 @@ function AdminDashboard() {
   );
 }
 
-// ─── Main shell ───────────────────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Main shell ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 interface AgentDashboardProps {
   role: RoleId;
@@ -1836,34 +1839,6 @@ interface AgentDashboardProps {
 
 export function AgentDashboard({ role: userRole, userName = 'Agent CNSS' }: AgentDashboardProps) {
   const role = ROLES.find(r => r.id === userRole)!;
-  const { user, refetch } = useUser();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    async function loadCount() {
-      try {
-        const notifs = await (await import('../api')).getNotifications();
-        const mapped = (notifs as any[]).map(n => ({ lue: !!n.read_at }));
-        setUnreadCount(mapped.filter(n => !n.lue).length);
-      } catch (e) {
-        // ignore
-      }
-    }
-    loadCount();
-  }, []);
-
-  // Listen for user updates to refresh header and notification count
-  useEffect(() => {
-    const onUserUpdated = async () => {
-      try {
-        const notifs = await (await import('../api')).getNotifications();
-        const mapped = (notifs as any[]).map(n => ({ lue: !!n.read_at }));
-        setUnreadCount(mapped.filter(n => !n.lue).length);
-      } catch (e) {}
-    };
-    window.addEventListener('cnss:user-updated', onUserUpdated);
-    return () => window.removeEventListener('cnss:user-updated', onUserUpdated);
-  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -1873,8 +1848,8 @@ export function AgentDashboard({ role: userRole, userName = 'Agent CNSS' }: Agen
           <div className="flex items-center gap-3 mb-3">
             <CNSSLogo size="medium" />
             <div>
-              <p className="font-bold text-gray-900 text-sm">CNSS Bénin</p>
-              <p className="text-xs text-gray-500">{user ? `${user.name} · ${user.email}` : 'Espace Agent'}</p>
+              <p className="font-bold text-gray-900 text-sm">CNSS B├®nin</p>
+              <p className="text-xs text-gray-500">Espace Agent</p>
             </div>
           </div>
           <div className={`px-3 py-2 rounded-lg text-xs font-semibold ${role.color}`}>
@@ -1885,26 +1860,26 @@ export function AgentDashboard({ role: userRole, userName = 'Agent CNSS' }: Agen
         <nav className="flex-1 p-4">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Mon espace</p>
           <p className="text-sm text-gray-600 px-4 py-3">
-            Vous êtes connecté en tant que <span className="font-semibold">{role.label}</span>
+            Vous ├¬tes connect├® en tant que <span className="font-semibold">{role.label}</span>
           </p>
         </nav>
 
         <div className="p-4 border-t border-gray-200 space-y-1">
-          <Link to="/agent/parametres" className="w-full inline-flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+          <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
             <Settings className="w-5 h-5" />
-            <span className="font-medium text-sm">Paramètres</span>
-          </Link>
-          <Link to="/agent/notifications" className="w-full inline-flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+            <span className="font-medium text-sm">Param├¿tres</span>
+          </button>
+          <button className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
             <Bell className="w-5 h-5" />
             <span className="font-medium text-sm">Notifications</span>
-            <span className="ml-auto min-w-[1.25rem] h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">{unreadCount}</span>
-          </Link>
+            <span className="ml-auto min-w-[1.25rem] h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">3</span>
+          </button>
           <Link
             to="/"
             className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
           >
             <LogOut className="w-5 h-5" />
-            <span className="font-medium text-sm">Déconnexion</span>
+            <span className="font-medium text-sm">D├®connexion</span>
           </Link>
         </div>
       </aside>
@@ -1914,11 +1889,11 @@ export function AgentDashboard({ role: userRole, userName = 'Agent CNSS' }: Agen
         <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-gray-900">{userName}</h1>
-            <p className="text-xs text-gray-500">{role.label} · CNSS Siège Cotonou</p>
+            <p className="text-xs text-gray-500">{role.label} ┬À CNSS Si├¿ge Cotonou</p>
           </div>
           <div className="flex items-center gap-3">
             <span className={`hidden sm:inline-block px-3 py-1 rounded-full text-xs font-semibold ${role.color}`}>{role.badge}</span>
-            <button onClick={() => { window.location.href = '/agent/notifications'; }} className="relative p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
+            <button className="relative p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors" title="Voir les notifications" aria-label="Voir les notifications">
               <Bell className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>
@@ -1939,41 +1914,32 @@ export function AgentDashboard({ role: userRole, userName = 'Agent CNSS' }: Agen
 }
 
 // Wrappers pour chaque profil
-function useAgentName(defaultName: string) {
-  const { user, loading } = useUser();
-  if (loading) return defaultName;
-  if (!user) return defaultName;
-  // Prefer a human-readable name if available on the agent relation or profile
-  const profileName = user?.agent?.display_name ?? user?.agent?.name ?? user?.profile?.company_name ?? user?.name;
-  return profileName || defaultName;
+
+function getConnectedUserName(): string {
+  const user = getStoredUser();
+  return (user?.name as string) ?? 'Agent CNSS';
 }
 
 export function AgentImmatriculationDashboard() {
-  const name = useAgentName('Agent immatriculation');
-  return <AgentDashboard role="immatriculation" userName={name} />;
+  return <AgentDashboard role="immatriculation" userName={getConnectedUserName()} />;
 }
 
 export function AgentEmployeurDashboard() {
-  const name = useAgentName('Agent employeur');
-  return <AgentDashboard role="employeur" userName={name} />;
+  return <AgentDashboard role="employeur" userName={getConnectedUserName()} />;
 }
 
 export function AgentCotisationDashboard() {
-  const name = useAgentName('Agent cotisation');
-  return <AgentDashboard role="cotisation" userName={name} />;
+  return <AgentDashboard role="cotisation" userName={getConnectedUserName()} />;
 }
 
 export function AgentPrestationsDashboard() {
-  const name = useAgentName('Agent prestations');
-  return <AgentDashboard role="prestations" userName={name} />;
+  return <AgentDashboard role="prestations" userName={getConnectedUserName()} />;
 }
 
 export function AgentSupportDashboard() {
-  const name = useAgentName('Agent support');
-  return <AgentDashboard role="support" userName={name} />;
+  return <AgentDashboard role="support" userName={getConnectedUserName()} />;
 }
 
 export function AdminDashboardPage() {
-  const name = useAgentName('Administrateur');
-  return <AgentDashboard role="admin" userName={name} />;
+  return <AgentDashboard role="admin" userName={getConnectedUserName()} />;
 }
