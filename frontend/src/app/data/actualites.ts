@@ -51,7 +51,7 @@ Les frais de transaction sont à la charge de la CNSS pour les cotisations d'un 
 Pour toute assistance, contactez le support CNSS au (+229) 90 19 00 00 ou via le chat en ligne disponible sur la plateforme.`,
     date: '20 Avril 2026',
     lecture: '2 min',
-    image: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=1200&h=700&fit=crop',
+    image: 'https://i.postimg.cc/pr7dvk8y/Gemini-Generated-Image-fxahlfxahlfxahlf.png',
     auteur: 'Direction des Services Numériques CNSS',
   },
   {
@@ -77,7 +77,7 @@ Des conseillers spécialisés seront disponibles sans rendez-vous de 8h à 17h30
 Venez avec vos pièces d'identité et vos documents CNSS pour un accompagnement optimal.`,
     date: '15 Avril 2026',
     lecture: '2 min',
-    image: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=1200&h=700&fit=crop',
+    image: 'https://i.postimg.cc/GtDWBjVB/Gemini-Generated-Image-8rkdks8rkdks8rkd.png',
     auteur: 'Direction de la Communication CNSS',
   },
   {
@@ -106,7 +106,7 @@ Le plafond mensuel de cotisation est fixé à 600 000 FCFA. Les salaires dépass
 Les employeurs sont tenus de déclarer et reverser les cotisations au plus tard le 15 du mois suivant la période de paie. Tout retard entraîne des pénalités calculées au taux légal.`,
     date: '5 Janvier 2026',
     lecture: '4 min',
-    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&h=700&fit=crop',
+    image: 'https://i.postimg.cc/Pq8P5gKP/Gemini-Generated-Image-dqh9avdqh9avdqh9.png',
     auteur: 'Direction des Cotisations CNSS',
   },
   {
@@ -154,7 +154,7 @@ La pension de retraite anticipée est calculée de la même manière que la pens
 Pour toute demande, les dossiers doivent être déposés en agence CNSS accompagnés des pièces justificatives correspondantes. Les délais de traitement sont de 60 jours à compter du dépôt du dossier complet.`,
     date: '28 Février 2026',
     lecture: '4 min',
-    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=700&fit=crop',
+    image: 'https://i.postimg.cc/vTTh18K4/Gemini-Generated-Image-dbqc7udbqc7udbqc.png',
     auteur: 'Direction des Prestations CNSS',
   },
 ];

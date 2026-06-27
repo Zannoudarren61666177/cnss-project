@@ -249,7 +249,7 @@ export function PresentationPage() {
                 {
                   titre: 'Prestations Familiales et de Maternité',
                   desc: 'Soutien aux charges de famille et protection à la maternité pour tous les salariés.',
-                  photo: 'https://images.unsplash.com/photo-1639391380085-ead79229b762?w=800&h=900&fit=crop',
+                  photo: 'https://i.postimg.cc/sD7JLL5W/Gemini-Generated-Image-30634x30634x3063.png',
                   accent: '#4A90E2',
                   tag: 'Branche 01',
                 },
@@ -263,7 +263,7 @@ export function PresentationPage() {
                 {
                   titre: 'Prestations de Pensions',
                   desc: 'Garantie d\'une retraite digne pour les travailleurs et leurs ayants droit.',
-                  photo: 'https://images.unsplash.com/photo-1514415008039-efa173293080?w=800&h=900&fit=crop',
+                  photo: 'https://i.postimg.cc/0NR1sFBh/Gemini-Generated-Image-grb4s2grb4s2grb4.png',
                   accent: '#2276d2',
                   tag: 'Branche 03',
                 },

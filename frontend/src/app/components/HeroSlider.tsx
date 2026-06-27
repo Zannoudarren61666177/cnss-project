@@ -17,7 +17,7 @@ const slides = [
     subtitle: "Déclarez vos travailleurs en ligne",
     description:
       "Simplifiez vos démarches administratives avec notre plateforme digitale",
-    image: "",
+    image: "https://i.postimg.cc/Y2D9xpnp/Capture-d-ecran-2026-06-26-204444.png",
     icon: Smartphone,
   },
   {

@@ -56,7 +56,7 @@ Depuis juin 1979, les prestations ont été étendues aux enfants des salariés 
 Cette branche garantit une prise en charge immédiate et complète, sans délai de carence, dès le premier jour d'arrêt de travail. La CNSS assure ainsi la continuité du revenu et la prise en charge des soins médicaux, que l'accident survienne au poste de travail ou sur le trajet domicile-travail.
 
 En cas d'incapacité permanente, une rente est versée au travailleur. En cas de décès, les ayants droit bénéficient d'une rente de survie et d'un capital décès.`,
-    photo: 'https://images.unsplash.com/photo-1622612023350-b15f063eabe6?w=1200&h=700&fit=crop',
+    photo: 'https://i.postimg.cc/cLRqmTD4/Gemini-Generated-Image-gi1h0wgi1h0wgi1h.png',
     tag: '100% des soins couverts',
     avantages: [
       { label: 'Prise en charge médicale', valeur: 'Totale et immédiate' },
@@ -89,7 +89,7 @@ En cas d'incapacité permanente, une rente est versée au travailleur. En cas de
 La pension de vieillesse est calculée sur la base du salaire moyen des meilleures années de cotisation et du nombre de trimestres validés. Plus le travailleur a cotisé longtemps, plus sa pension est élevée, dans la limite du plafond fixé par la réglementation.
 
 La retraite anticipée est possible dans certains cas (emplois pénibles, incapacité partielle), sous réserve d'avoir validé un nombre minimum de trimestres. La pension d'invalidité intervient lorsque le travailleur se trouve dans l'impossibilité permanente d'exercer une activité professionnelle.`,
-    photo: 'https://images.unsplash.com/photo-1593614202631-c29a06abba1d?w=1200&h=700&fit=crop',
+    photo: 'https://i.postimg.cc/SN58rfXS/Gemini-Generated-Image-xa420mxa420mxa42.png',
     tag: 'Dès 60 ans / 180 mois',
     avantages: [
       { label: 'Pension de vieillesse', valeur: "À partir de 60 ans" },
