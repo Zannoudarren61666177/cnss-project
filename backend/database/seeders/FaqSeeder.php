@@ -46,6 +46,11 @@ class FaqSeeder extends Seeder
                 'categorie' => 'Prestations',
             ],
             [
+                'question' => "Comment consulter mes droits à la retraite ?",
+                'reponse' => "Pour consulter vos droits à la retraite, connectez-vous à votre espace personnel sur le site CNSS. Dans la section 'Mes droits', vous trouverez le détail de vos cotisations, le nombre de mois validés et une estimation de votre future pension.",
+                'categorie' => 'Prestations',
+            ],
+            [
                 'question' => "Comment contacter la CNSS ?",
                 'reponse' => "Vous pouvez nous joindre au +229 90 19 00 00, par email à info@cnss.bj, ou vous rendre directement à notre siège situé au 390, Avenue Jean-Paul II, Cotonou.",
                 'categorie' => 'Contact',
@@ -53,7 +58,10 @@ class FaqSeeder extends Seeder
         ];
 
         foreach ($faqs as $faq) {
-            Faq::create($faq);
+            Faq::updateOrCreate(
+                ['question' => $faq['question']],
+                $faq
+            );
         }
     }
 }

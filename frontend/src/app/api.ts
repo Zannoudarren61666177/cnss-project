@@ -376,6 +376,16 @@ export async function askChatbot(message: string): Promise<{ reponse: string; so
   });
 }
 
+// ─── Recherche intelligente ───────────────────────────────────────────────────
+export async function searchIntelligente(query: string): Promise<any[]> {
+  try {
+    return await apiFetch(`/recherche?q=${encodeURIComponent(query)}`);
+  } catch (error) {
+    console.error('Erreur recherche:', error);
+    return [];
+  }
+}
+
 export async function getCotisationsParEmployeur(employeurId: number): Promise<any[]> {
   return apiFetch(`/cotisations/par-employeur/${employeurId}`);
 }

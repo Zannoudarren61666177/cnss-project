@@ -11,6 +11,7 @@ class KeywordSearchEngine implements SearchEngineInterface
         $termes = '%' . trim($requete) . '%';
         $resultats = [];
 
+        // Chercher dans les FAQs
         $faqs = Faq::where('actif', true)
             ->where(function ($q) use ($termes) {
                 $q->where('question', 'like', $termes)
@@ -28,8 +29,13 @@ class KeywordSearchEngine implements SearchEngineInterface
             ];
         }
 
-            $actualites = Actualite::where('titre', 'like', $termes)
-            ->orWhere('description', 'like', $termes)
+        // Chercher dans les Actualités
+        $actualites = Actualite::where('actif', true)
+            ->where(function ($q) use ($termes) {
+                $q->where('titre', 'like', $termes)
+                  ->orWhere('description', 'like', $termes)
+                  ->orWhere('extrait', 'like', $termes);
+            })
             ->limit(5)
             ->get();
 
