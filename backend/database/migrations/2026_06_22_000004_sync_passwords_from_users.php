@@ -9,12 +9,21 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Sync passwords from users table
-        DB::statement('UPDATE employeurs e SET e.password = (SELECT u.password FROM users u WHERE u.id = e.user_id) WHERE e.user_id IS NOT NULL AND e.password IS NULL');
-        
-        DB::statement('UPDATE travailleurs t SET t.password = (SELECT u.password FROM users u WHERE u.id = t.user_id) WHERE t.user_id IS NOT NULL AND t.password IS NULL');
-        
-        DB::statement('UPDATE agents a SET a.password = (SELECT u.password FROM users u WHERE u.id = a.user_id) WHERE a.user_id IS NOT NULL AND a.password IS NULL');
+        $syncPassword = function (string $table): void {
+            $records = DB::table($table)->whereNotNull('user_id')->whereNull('password')->get(['id', 'user_id']);
+
+            foreach ($records as $record) {
+                $password = DB::table('users')->where('id', $record->user_id)->value('password');
+
+                if ($password !== null) {
+                    DB::table($table)->where('id', $record->id)->update(['password' => $password]);
+                }
+            }
+        };
+
+        $syncPassword('employeurs');
+        $syncPassword('travailleurs');
+        $syncPassword('agents');
     }
 
     public function down(): void

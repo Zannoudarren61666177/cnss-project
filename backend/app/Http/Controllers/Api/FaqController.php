@@ -7,9 +7,29 @@ use Illuminate\Http\Request;
 
 class FaqController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return Faq::where('actif', true)->orderByDesc('vues')->get();
+        $query = Faq::query();
+
+        // Admin/agent → toutes les FAQs
+        // Public → seulement les actives
+        $user = $request->user();
+        $isAgent = $user && in_array($user->type ?? $user->role ?? '', ['agent', 'admin']);
+
+        if ($isAgent) {
+            $query->orderByDesc('vues');
+        } else {
+            $query->where('actif', true)->orderByDesc('vues');
+        }
+
+        return response()->json($query->get());
+    }
+
+    public function show(string $id)
+    {
+        $faq = Faq::findOrFail($id);
+        $faq->increment('vues');
+        return response()->json($faq);
     }
 
     public function store(Request $request)
@@ -18,6 +38,7 @@ class FaqController extends Controller
             'question'  => ['required', 'string', 'max:500'],
             'reponse'   => ['required', 'string'],
             'categorie' => ['nullable', 'string', 'max:100'],
+            'actif'     => ['boolean'],
         ]);
 
         return response()->json(Faq::create($data), 201);
@@ -31,6 +52,7 @@ class FaqController extends Controller
             'question'  => ['sometimes', 'required', 'string', 'max:500'],
             'reponse'   => ['sometimes', 'required', 'string'],
             'categorie' => ['nullable', 'string', 'max:100'],
+            'actif'     => ['sometimes', 'boolean'],
         ]);
 
         $faq->update($data);
