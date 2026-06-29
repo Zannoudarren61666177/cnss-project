@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Users,
   FileText,
@@ -11,19 +11,27 @@ import {
   PlusCircle,
   Download,
   Search,
-  Calendar,
   TrendingUp,
   AlertCircle,
   X,
   Upload,
   CheckCircle,
   UserX,
-  Info
+  Info,
+  RefreshCw,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { CNSSLogo } from './CNSSLogo';
 import { useUser } from '../hooks/useUser';
-import { clearAuth, getTravailleursParEmployeur, getNotifications, downloadTravailleurAttestation } from '../api';
+import {
+  clearAuth,
+  getTravailleursParEmployeur,
+  getNotifications,
+  downloadTravailleurAttestation,
+  initierPaiementCotisation,
+  getCotisationsParEmployeur,
+  verifierPaiementFedaPay,
+} from '../api';
 
 interface Travailleur {
   id: number;
@@ -74,8 +82,6 @@ interface CotisationTravailleur {
 
 const cotisationsParTravailleur: CotisationTravailleur[] = [];
 
-const declarations: Declaration[] = [];
-
 function mapTravailleurFromApi(t: any): Travailleur {
   const statutMap: Record<string, Travailleur['statut']> = {
     actif: 'Actif',
@@ -95,25 +101,93 @@ function mapTravailleurFromApi(t: any): Travailleur {
   };
 }
 
+function mapDeclarationFromApi(c: any): Declaration {
+  const statutMap: Record<string, Declaration['statut']> = {
+    'payée':      'Payée',
+    'payee':      'Payée',
+    'Payée':      'Payée',
+    'Vérifiée':   'Payée',
+    'verifiee':   'Payée',
+    'approved':   'Payée',
+    'En attente': 'En attente',
+    'pending':    'En attente',
+    'en_attente': 'En attente',
+    'En retard':  'En retard',
+    'late':       'En retard',
+    'en_retard':  'En retard',
+  };
+
+  const details = Array.isArray(c.details) ? c.details.map((d: any) => ({
+    // ← si d.travailleur est un objet, extraire le nom
+    travailleur: typeof d.travailleur === 'object' && d.travailleur !== null
+      ? `${d.travailleur.first_name ?? ''} ${d.travailleur.last_name ?? ''}`.trim()
+      : (d.travailleur ?? `${d.prenom ?? ''} ${d.nom ?? ''}`.trim() ?? '—'),
+    // ← si d.travailleur est un objet, extraire le matricule
+    matricule: typeof d.travailleur === 'object' && d.travailleur !== null
+      ? (d.travailleur.numero_cnss ?? '—')
+      : (d.matricule ?? '—'),
+    salaire:             Number(d.salaire_brut ?? d.salaire ?? 0),
+    cotisationSalariale: Number(d.montant_salarial ?? d.cotisation_salariale ?? 0),
+    cotisationPatronale: Number(d.montant_patronal ?? d.cotisation_patronale ?? 0),
+    total:               Number(d.montant_total ?? d.total ?? 0),
+  })) : [];
+
+  let periode = c.periode ?? '';
+  if (!periode && c.mois && c.annee) {
+    const date = new Date(c.annee, c.mois - 1);
+    periode = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    periode = periode.charAt(0).toUpperCase() + periode.slice(1);
+  }
+
+  return {
+    id:                      c.id,
+    periode,
+    montant:                 Number(c.montant_total ?? c.montant ?? 0),
+    // ← utiliser c.status (pas c.statut) car le backend retourne "status"
+    statut:                  statutMap[c.status] ?? statutMap[c.statut] ?? 'En attente',
+    dateEcheance:            c.echeance
+                               ? new Date(c.echeance).toLocaleDateString('fr-FR')
+                               : (c.date_echeance
+                                   ? new Date(c.date_echeance).toLocaleDateString('fr-FR')
+                                   : '—'),
+    dateEmission:            c.created_at
+                               ? new Date(c.created_at).toLocaleDateString('fr-FR') : '—',
+    secteurActivite:         c.secteur_activite ?? c.secteur ?? '—',
+    nombreTravailleurs:      Number(c.nombre_travailleurs ?? details.length ?? 0),
+    masseSalariale:          Number(c.masse_salariale ?? 0),
+    tauxCotisationSalariale: Number(c.taux_salarial ?? c.taux_cotisation_salariale ?? 3.6),
+    tauxCotisationPatronale: Number(c.taux_patronal ?? c.taux_cotisation_patronale ?? 15.4),
+    montantSalarial:         Number(c.montant_salarial ?? 0),
+    montantPatronal:         Number(c.montant_patronal ?? 0),
+    detailsCalcul:           details,
+  };
+}
+
 export function EmployeurDashboard() {
   const navigate = useNavigate();
   const { user, loading, error } = useUser();
 
   const [travailleurs, setTravailleurs] = useState<Travailleur[]>([]);
+  const [declarations, setDeclarations] = useState<Declaration[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loadingTravailleurs, setLoadingTravailleurs] = useState(false);
+  const [loadingDeclarations, setLoadingDeclarations] = useState(false);
   const [activeTab, setActiveTab] = useState<'apercu' | 'travailleurs' | 'declarations' | 'paiements' | 'historique'>('apercu');
   const [selectedTravailleur, setSelectedTravailleur] = useState<Travailleur | null>(null);
   const [selectedDeclaration, setSelectedDeclaration] = useState<Declaration | null>(null);
-  const [selectedPaiement, setSelectedPaiement] = useState<Declaration | null>(null);
   const [selectedModePaiement, setSelectedModePaiement] = useState<'carte' | 'mobile' | 'virement' | null>(null);
   const [showDesactivationModal, setShowDesactivationModal] = useState(false);
   const [travailleurADesactiver, setTravailleurADesactiver] = useState<Travailleur | null>(null);
   const [motifDesactivation, setMotifDesactivation] = useState('');
   const [fichierJustificatif, setFichierJustificatif] = useState<File | null>(null);
+  const [paiementEnCoursId, setPaiementEnCoursId] = useState<number | null>(null);
+  const [paiementErreur, setPaiementErreur] = useState<string | null>(null);
+  const [paiementSucces, setPaiementSucces] = useState<string | null>(null);
+  const [rechercheTravailleurs, setRechercheTravailleurs] = useState('');
 
   const employeurId = user?.profile?.id;
 
+  // ─── Charger les travailleurs ─────────────────────────────────────────────
   useEffect(() => {
     if (!employeurId) return;
     let mounted = true;
@@ -131,6 +205,51 @@ export function EmployeurDashboard() {
     return () => { mounted = false; };
   }, [employeurId]);
 
+  // ─── Charger les déclarations (cotisations) ───────────────────────────────
+  const chargerDeclarations = useCallback(async () => {
+    if (!employeurId) return;
+    setLoadingDeclarations(true);
+    try {
+      const data = await getCotisationsParEmployeur(employeurId);
+      setDeclarations((data as any[]).map(mapDeclarationFromApi));
+    } catch (err) {
+      console.error('Erreur chargement déclarations', err);
+    } finally {
+      setLoadingDeclarations(false);
+    }
+  }, [employeurId]);
+
+  useEffect(() => {
+    chargerDeclarations();
+  }, [chargerDeclarations]);
+
+  // ─── Vérifier un paiement FedaPay au retour de la redirection ────────────
+  useEffect(() => {
+    if (!employeurId) return;
+    const cotisationId = localStorage.getItem('fedapay_cotisation_id');
+    const transactionId = localStorage.getItem('fedapay_transaction_id');
+    if (!cotisationId || !transactionId) return;
+
+    localStorage.removeItem('fedapay_cotisation_id');
+    localStorage.removeItem('fedapay_transaction_id');
+
+    (async () => {
+      try {
+        const result = await verifierPaiementFedaPay(cotisationId, transactionId);
+        if (result?.statut === 'payee' || result?.statut === 'paid') {
+          setPaiementSucces('Paiement confirmé avec succès !');
+        } else {
+          setPaiementErreur('Le paiement n\'a pas pu être confirmé. Contactez la CNSS si le montant a été débité.');
+        }
+        // Recharger les déclarations pour afficher le nouveau statut
+        await chargerDeclarations();
+      } catch (err) {
+        console.error('Vérification paiement échouée', err);
+      }
+    })();
+  }, [employeurId, chargerDeclarations]);
+
+  // ─── Charger les notifications ────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -146,10 +265,36 @@ export function EmployeurDashboard() {
     return () => { mounted = false; };
   }, []);
 
-  // Gérer la déconnexion
   const handleLogout = () => {
     clearAuth();
     navigate('/');
+  };
+
+  // ─── Initier le paiement FedaPay ─────────────────────────────────────────
+  const handlePaiementCotisation = async (declaration: Declaration) => {
+    setPaiementErreur(null);
+    setPaiementSucces(null);
+    setPaiementEnCoursId(declaration.id);
+
+    try {
+      const response = await initierPaiementCotisation(declaration.id);
+
+      if (!response?.payment_url) {
+        throw new Error('Aucun lien de paiement reçu du serveur.');
+      }
+
+      // Sauvegarder les IDs pour vérification au retour
+      localStorage.setItem('fedapay_cotisation_id', String(declaration.id));
+      localStorage.setItem('fedapay_transaction_id', String(response.transaction_id));
+
+      // Rediriger vers FedaPay
+      window.location.href = response.payment_url;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Impossible d\'initier le paiement.';
+      setPaiementErreur(message);
+    } finally {
+      setPaiementEnCoursId(null);
+    }
   };
 
   if (error && !user) {
@@ -164,10 +309,21 @@ export function EmployeurDashboard() {
     );
   }
 
-  // Données de l'utilisateur (entreprise)
   const companyName = user?.profile?.company_name || user?.email || 'Mon Entreprise';
   const ifu = user?.profile?.ifu || 'À compléter';
   const cnss = user?.profile?.numero_cnss || 'N/A';
+
+  const travailleursFiltres = travailleurs.filter(t =>
+    rechercheTravailleurs === '' ||
+    t.nom.toLowerCase().includes(rechercheTravailleurs.toLowerCase()) ||
+    t.prenom.toLowerCase().includes(rechercheTravailleurs.toLowerCase()) ||
+    t.matricule.toLowerCase().includes(rechercheTravailleurs.toLowerCase()) ||
+    (t.poste ?? '').toLowerCase().includes(rechercheTravailleurs.toLowerCase())
+  );
+
+  const totalCotisations = declarations
+    .filter(d => d.statut === 'Payée')
+    .reduce((sum, d) => sum + d.montant, 0);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -178,6 +334,26 @@ export function EmployeurDashboard() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Tableau de bord</h2>
               <p className="text-gray-600">Bienvenue sur votre espace employeur CNSS</p>
             </div>
+
+            {/* Alertes globales */}
+            {paiementSucces && (
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg p-4">
+                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <p className="text-sm font-semibold text-green-900">{paiementSucces}</p>
+                <button onClick={() => setPaiementSucces(null)} className="ml-auto text-green-600 hover:text-green-800">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            {paiementErreur && (
+              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg p-4">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                <p className="text-sm font-semibold text-red-900">{paiementErreur}</p>
+                <button onClick={() => setPaiementErreur(null)} className="ml-auto text-red-600 hover:text-red-800">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Statistiques */}
             <div className="grid md:grid-cols-4 gap-6">
@@ -208,7 +384,9 @@ export function EmployeurDashboard() {
                   </div>
                 </div>
                 <p className="text-gray-600 text-sm mb-1">En attente</p>
-                <p className="text-3xl font-bold text-gray-900">{travailleurs.filter(t => t.statut === 'En attente').length}</p>
+                <p className="text-3xl font-bold text-gray-900">
+                  {declarations.filter(d => d.statut === 'En attente').length}
+                </p>
               </div>
 
               <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
@@ -217,8 +395,10 @@ export function EmployeurDashboard() {
                     <TrendingUp className="w-6 h-6 text-purple-600" />
                   </div>
                 </div>
-                <p className="text-gray-600 text-sm mb-1">Total cotisations</p>
-                <p className="text-2xl font-bold text-gray-900">— FCFA</p>
+                <p className="text-gray-600 text-sm mb-1">Total cotisations payées</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {totalCotisations > 0 ? `${totalCotisations.toLocaleString()} FCFA` : '— FCFA'}
+                </p>
               </div>
             </div>
 
@@ -238,7 +418,7 @@ export function EmployeurDashboard() {
                   className="flex flex-col items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
                 >
                   <FileText className="w-8 h-8 text-blue-600" />
-                  <span className="font-semibold text-gray-900">Nouvelle déclaration</span>
+                  <span className="font-semibold text-gray-900">Mes déclarations</span>
                 </button>
                 <button
                   onClick={() => setActiveTab('paiements')}
@@ -268,61 +448,67 @@ export function EmployeurDashboard() {
                   Voir tout
                 </button>
               </div>
-              <div className="space-y-3">
-                {declarations.slice(0, 3).map((declaration) => (
-                  <div key={declaration.id} className="border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                            <FileText className="w-6 h-6 text-blue-600" />
+              {loadingDeclarations ? (
+                <p className="text-center text-gray-500 py-4">Chargement des déclarations...</p>
+              ) : declarations.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">Aucune déclaration disponible.</p>
+              ) : (
+                <div className="space-y-3">
+                  {declarations.slice(0, 3).map((declaration) => (
+                    <div key={declaration.id} className="border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                              <FileText className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-900">{declaration.periode}</p>
+                              <p className="text-xs text-gray-500">Émise le {declaration.dateEmission}</p>
+                            </div>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            declaration.statut === 'Payée' ? 'bg-green-100 text-green-700' :
+                            declaration.statut === 'En attente' ? 'bg-orange-100 text-orange-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {declaration.statut}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 bg-gray-50 rounded-lg p-3">
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Travailleurs</p>
+                            <p className="font-semibold text-gray-900">{declaration.nombreTravailleurs}</p>
                           </div>
                           <div>
-                            <p className="font-bold text-gray-900">{declaration.periode}</p>
-                            <p className="text-xs text-gray-500">Émise le {declaration.dateEmission}</p>
+                            <p className="text-xs text-gray-600 mb-1">Masse salariale</p>
+                            <p className="font-semibold text-gray-900">{declaration.masseSalariale.toLocaleString()} FCFA</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Échéance</p>
+                            <p className="font-semibold text-gray-900">{declaration.dateEcheance}</p>
                           </div>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          declaration.statut === 'Payée' ? 'bg-green-100 text-green-700' :
-                          declaration.statut === 'En attente' ? 'bg-orange-100 text-orange-700' :
-                          'bg-red-100 text-red-700'
-                        }`}>
-                          {declaration.statut}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4 bg-gray-50 rounded-lg p-3">
-                        <div>
-                          <p className="text-xs text-gray-600 mb-1">Travailleurs</p>
-                          <p className="font-semibold text-gray-900">{declaration.nombreTravailleurs}</p>
+                        <div className="mt-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Montant total à payer</p>
+                            <p className="text-xl font-bold text-blue-600">{declaration.montant.toLocaleString()} FCFA</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedDeclaration(declaration);
+                              setActiveTab('declarations');
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold"
+                          >
+                            Voir détails
+                          </button>
                         </div>
-                        <div>
-                          <p className="text-xs text-gray-600 mb-1">Masse salariale</p>
-                          <p className="font-semibold text-gray-900">{declaration.masseSalariale.toLocaleString()} FCFA</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-600 mb-1">Échéance</p>
-                          <p className="font-semibold text-gray-900">{declaration.dateEcheance}</p>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-gray-600 mb-1">Montant total à payer</p>
-                          <p className="text-xl font-bold text-blue-600">{declaration.montant.toLocaleString()} FCFA</p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSelectedDeclaration(declaration);
-                            setActiveTab('declarations');
-                          }}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold"
-                        >
-                          Voir détails
-                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Menu actions */}
@@ -341,9 +527,9 @@ export function EmployeurDashboard() {
                   </div>
                 </div>
               </Link>
-              <Link
-                to="/"
-                className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:bg-red-50 transition-colors"
+              <button
+                onClick={handleLogout}
+                className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:bg-red-50 transition-colors text-left"
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -354,7 +540,7 @@ export function EmployeurDashboard() {
                     <p className="text-sm text-gray-600">Quitter votre espace employeur</p>
                   </div>
                 </div>
-              </Link>
+              </button>
             </div>
           </div>
         );
@@ -362,7 +548,7 @@ export function EmployeurDashboard() {
       case 'travailleurs':
         if (selectedTravailleur) {
           const cotisations = cotisationsParTravailleur.filter(c => c.travailleurId === selectedTravailleur.id);
-          const totalCotisations = cotisations.reduce((sum, c) => sum + c.montantTotal, 0);
+          const totalCotisationsTravailleur = cotisations.reduce((sum, c) => sum + c.montantTotal, 0);
           const cotisationsPayees = cotisations.filter(c => c.statut === 'Payée').length;
 
           return (
@@ -374,13 +560,10 @@ export function EmployeurDashboard() {
                 >
                   ← Retour à la liste
                 </button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Détails du travailleur
-                </h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Détails du travailleur</h2>
                 <p className="text-gray-600">Historique complet des cotisations</p>
               </div>
 
-              {/* Informations du travailleur */}
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
@@ -396,7 +579,7 @@ export function EmployeurDashboard() {
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Poste</p>
-                        <p className="font-semibold text-gray-900">{selectedTravailleur.poste}</p>
+                        <p className="font-semibold text-gray-900">{selectedTravailleur.poste ?? '—'}</p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Date d'affiliation</p>
@@ -404,7 +587,9 @@ export function EmployeurDashboard() {
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Salaire mensuel</p>
-                        <p className="font-semibold text-gray-900">{selectedTravailleur.salaire?.toLocaleString()} FCFA</p>
+                        <p className="font-semibold text-gray-900">
+                          {selectedTravailleur.salaire ? `${selectedTravailleur.salaire.toLocaleString()} FCFA` : '—'}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Statut</p>
@@ -416,13 +601,12 @@ export function EmployeurDashboard() {
                       </div>
                     </div>
                   </div>
-
                   <div>
                     <h3 className="text-lg font-bold text-gray-900 mb-4">Statistiques</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-blue-50 rounded-lg p-4">
                         <p className="text-sm text-blue-600 mb-1">Total cotisations</p>
-                        <p className="text-2xl font-bold text-blue-900">{totalCotisations.toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-blue-900">{totalCotisationsTravailleur.toLocaleString()}</p>
                         <p className="text-xs text-blue-700">FCFA</p>
                       </div>
                       <div className="bg-green-50 rounded-lg p-4">
@@ -435,11 +619,8 @@ export function EmployeurDashboard() {
                 </div>
               </div>
 
-              {/* Historique des cotisations */}
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">
-                  Historique des cotisations
-                </h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-4">Historique des cotisations</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
@@ -453,7 +634,13 @@ export function EmployeurDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {cotisations.map((cotisation) => (
+                      {cotisations.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                            Aucun historique de cotisation disponible.
+                          </td>
+                        </tr>
+                      ) : cotisations.map((cotisation) => (
                         <tr key={cotisation.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm font-semibold text-gray-900">{cotisation.periode}</td>
                           <td className="px-4 py-3 text-sm text-gray-600">{cotisation.dateVersement}</td>
@@ -472,29 +659,31 @@ export function EmployeurDashboard() {
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="bg-gray-50 border-t-2 border-gray-300">
-                      <tr>
-                        <td colSpan={4} className="px-4 py-3 text-sm font-bold text-gray-900 text-right">TOTAL:</td>
-                        <td className="px-4 py-3 text-sm font-bold text-right text-blue-600">{totalCotisations.toLocaleString()} FCFA</td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
+                    {cotisations.length > 0 && (
+                      <tfoot className="bg-gray-50 border-t-2 border-gray-300">
+                        <tr>
+                          <td colSpan={4} className="px-4 py-3 text-sm font-bold text-gray-900 text-right">TOTAL:</td>
+                          <td className="px-4 py-3 text-sm font-bold text-right text-blue-600">{totalCotisationsTravailleur.toLocaleString()} FCFA</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Actions</h3>
                 <div className="flex gap-4 flex-wrap">
-                  <button className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
-                    <Download className="w-5 h-5" />
-                    Télécharger l'historique (PDF)
-                  </button>
-                  <button className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-semibold">
-                    <FileText className="w-5 h-5" />
-                    Attestation de cotisations
-                  </button>
+                  {selectedTravailleur.statut === 'Actif' && selectedTravailleur.rawId && (
+                    <button
+                      onClick={() => downloadTravailleurAttestation(selectedTravailleur.rawId!)}
+                      className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
+                    >
+                      <FileText className="w-5 h-5" />
+                      Attestation de cotisations
+                    </button>
+                  )}
                   {selectedTravailleur.statut === 'Actif' && (
                     <button
                       onClick={() => {
@@ -536,6 +725,8 @@ export function EmployeurDashboard() {
                   <input
                     type="text"
                     placeholder="Rechercher un travailleur..."
+                    value={rechercheTravailleurs}
+                    onChange={e => setRechercheTravailleurs(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -557,14 +748,20 @@ export function EmployeurDashboard() {
                   <tbody className="divide-y divide-gray-200">
                     {loadingTravailleurs ? (
                       <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Chargement...</td></tr>
-                    ) : travailleurs.length === 0 ? (
-                      <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Aucun travailleur déclaré. <Link to="/employeur/declarer-travailleur" className="text-blue-600 hover:underline">Déclarer un travailleur</Link></td></tr>
-                    ) : travailleurs.map((travailleur) => (
+                    ) : travailleursFiltres.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                          {travailleurs.length === 0
+                            ? <span>Aucun travailleur déclaré. <Link to="/employeur/declarer-travailleur" className="text-blue-600 hover:underline">Déclarer un travailleur</Link></span>
+                            : 'Aucun résultat pour cette recherche.'}
+                        </td>
+                      </tr>
+                    ) : travailleursFiltres.map((travailleur) => (
                       <tr key={travailleur.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm text-gray-900 font-mono">{travailleur.matricule}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">{travailleur.nom}</td>
                         <td className="px-4 py-3 text-sm text-gray-900">{travailleur.prenom}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{travailleur.poste}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{travailleur.poste ?? '—'}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{travailleur.dateAffiliation}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
@@ -627,43 +824,23 @@ export function EmployeurDashboard() {
                   ← Retour aux déclarations
                 </button>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Détails de la déclaration - {selectedDeclaration.periode}
+                  Détails de la déclaration — {selectedDeclaration.periode}
                 </h2>
                 <p className="text-gray-600">Calculée et émise par la CNSS le {selectedDeclaration.dateEmission}</p>
               </div>
 
-              {/* Informations générales */}
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Informations de la déclaration</h3>
                 <div className="grid md:grid-cols-3 gap-6">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Période</p>
-                    <p className="font-bold text-gray-900">{selectedDeclaration.periode}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Date d'émission</p>
-                    <p className="font-bold text-gray-900">{selectedDeclaration.dateEmission}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Date d'échéance</p>
-                    <p className="font-bold text-gray-900">{selectedDeclaration.dateEcheance}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Secteur d'activité</p>
-                    <p className="font-bold text-gray-900">{selectedDeclaration.secteurActivite}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Nombre de travailleurs</p>
-                    <p className="font-bold text-gray-900">{selectedDeclaration.nombreTravailleurs}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Masse salariale totale</p>
-                    <p className="font-bold text-gray-900">{selectedDeclaration.masseSalariale.toLocaleString()} FCFA</p>
-                  </div>
+                  <div><p className="text-sm text-gray-600 mb-1">Période</p><p className="font-bold text-gray-900">{selectedDeclaration.periode}</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Date d'émission</p><p className="font-bold text-gray-900">{selectedDeclaration.dateEmission}</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Date d'échéance</p><p className="font-bold text-gray-900">{selectedDeclaration.dateEcheance}</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Secteur d'activité</p><p className="font-bold text-gray-900">{selectedDeclaration.secteurActivite}</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Nombre de travailleurs</p><p className="font-bold text-gray-900">{selectedDeclaration.nombreTravailleurs}</p></div>
+                  <div><p className="text-sm text-gray-600 mb-1">Masse salariale totale</p><p className="font-bold text-gray-900">{selectedDeclaration.masseSalariale.toLocaleString()} FCFA</p></div>
                 </div>
               </div>
 
-              {/* Taux de cotisation */}
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Taux de cotisation appliqués</h3>
                 <div className="grid md:grid-cols-2 gap-6">
@@ -680,48 +857,63 @@ export function EmployeurDashboard() {
                 </div>
               </div>
 
-              {/* Détails du calcul par travailleur */}
-              <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Détails du calcul par travailleur</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Travailleur</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Matricule</th>
-                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Salaire brut</th>
-                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Part salariale (4%)</th>
-                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Part patronale (16%)</th>
-                        <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Total cotisation</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {selectedDeclaration.detailsCalcul.map((detail, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-semibold text-gray-900">{detail.travailleur}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{detail.matricule}</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-900">{detail.salaire.toLocaleString()} FCFA</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-900">{detail.cotisationSalariale.toLocaleString()} FCFA</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-900">{detail.cotisationPatronale.toLocaleString()} FCFA</td>
-                          <td className="px-4 py-3 text-sm text-right font-bold text-gray-900">{detail.total.toLocaleString()} FCFA</td>
+              {selectedDeclaration.detailsCalcul.length > 0 && (
+                <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Détails du calcul par travailleur</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Travailleur</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Matricule</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Salaire brut</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Part salariale</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Part patronale</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Total</th>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50 border-t-2 border-gray-300">
-                      <tr>
-                        <td colSpan={3} className="px-4 py-3 text-sm font-bold text-gray-900 text-right">TOTAUX:</td>
-                        <td className="px-4 py-3 text-sm font-bold text-right text-blue-600">{selectedDeclaration.montantSalarial.toLocaleString()} FCFA</td>
-                        <td className="px-4 py-3 text-sm font-bold text-right text-green-600">{selectedDeclaration.montantPatronal.toLocaleString()} FCFA</td>
-                        <td className="px-4 py-3 text-sm font-bold text-right text-gray-900">{selectedDeclaration.montant.toLocaleString()} FCFA</td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {selectedDeclaration.detailsCalcul.map((detail, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-semibold text-gray-900">{detail.travailleur}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{detail.matricule}</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-900">{detail.salaire.toLocaleString()} FCFA</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-900">{detail.cotisationSalariale.toLocaleString()} FCFA</td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-900">{detail.cotisationPatronale.toLocaleString()} FCFA</td>
+                            <td className="px-4 py-3 text-sm text-right font-bold text-gray-900">{detail.total.toLocaleString()} FCFA</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50 border-t-2 border-gray-300">
+                        <tr>
+                          <td colSpan={3} className="px-4 py-3 text-sm font-bold text-gray-900 text-right">TOTAUX:</td>
+                          <td className="px-4 py-3 text-sm font-bold text-right text-blue-600">{selectedDeclaration.montantSalarial.toLocaleString()} FCFA</td>
+                          <td className="px-4 py-3 text-sm font-bold text-right text-green-600">{selectedDeclaration.montantPatronal.toLocaleString()} FCFA</td>
+                          <td className="px-4 py-3 text-sm font-bold text-right text-gray-900">{selectedDeclaration.montant.toLocaleString()} FCFA</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Récapitulatif et actions */}
               <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Récapitulatif</h3>
+
+                {paiementErreur && (
+                  <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    <p className="text-sm text-red-700">{paiementErreur}</p>
+                    <button onClick={() => setPaiementErreur(null)} className="ml-auto text-red-600"><X className="w-4 h-4" /></button>
+                  </div>
+                )}
+                {paiementSucces && (
+                  <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                    <p className="text-sm text-green-700">{paiementSucces}</p>
+                  </div>
+                )}
+
                 <div className="bg-blue-50 rounded-lg p-6 mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -750,15 +942,15 @@ export function EmployeurDashboard() {
 
                 <div className="flex gap-4">
                   {selectedDeclaration.statut !== 'Payée' && (
-                    <button className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
+                    <button
+                      onClick={() => handlePaiementCotisation(selectedDeclaration)}
+                      disabled={paiementEnCoursId === selectedDeclaration.id}
+                      className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
                       <CreditCard className="w-5 h-5" />
-                      Payer cette déclaration
+                      {paiementEnCoursId === selectedDeclaration.id ? 'Redirection en cours...' : 'Payer cette déclaration'}
                     </button>
                   )}
-                  <button className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-semibold">
-                    <Download className="w-5 h-5" />
-                    Télécharger le détail (PDF)
-                  </button>
                 </div>
               </div>
 
@@ -766,11 +958,9 @@ export function EmployeurDashboard() {
                 <div className="flex gap-3">
                   <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-yellow-900 mb-1">
-                      Déclaration calculée par la CNSS
-                    </p>
+                    <p className="text-sm font-semibold text-yellow-900 mb-1">Déclaration calculée par la CNSS</p>
                     <p className="text-xs text-yellow-800">
-                      Cette déclaration a été calculée automatiquement par la CNSS en fonction de votre secteur d'activité ({selectedDeclaration.secteurActivite}) et de la masse salariale déclarée pour vos {selectedDeclaration.nombreTravailleurs} travailleurs. Les taux appliqués sont conformes à la réglementation en vigueur.
+                      Cette déclaration a été calculée automatiquement par la CNSS en fonction de votre secteur d'activité ({selectedDeclaration.secteurActivite}) et de la masse salariale déclarée pour vos {selectedDeclaration.nombreTravailleurs} travailleurs.
                     </p>
                   </div>
                 </div>
@@ -781,311 +971,146 @@ export function EmployeurDashboard() {
 
         return (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Déclarations de cotisations</h2>
-              <p className="text-gray-600">Consultez vos déclarations calculées et envoyées par la CNSS</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Déclarations de cotisations</h2>
+                <p className="text-gray-600">Consultez vos déclarations calculées par la CNSS</p>
+              </div>
+              <button
+                onClick={chargerDeclarations}
+                disabled={loadingDeclarations}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-semibold disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingDeclarations ? 'animate-spin' : ''}`} />
+                Actualiser
+              </button>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex gap-3">
                 <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-blue-900 mb-1">
-                    Comment fonctionnent les déclarations ?
-                  </p>
+                  <p className="text-sm font-semibold text-blue-900 mb-1">Comment fonctionnent les déclarations ?</p>
                   <p className="text-xs text-blue-800">
-                    Chaque mois, la CNSS calcule automatiquement vos cotisations à payer en fonction de votre secteur d'activité et de la masse salariale de vos travailleurs déclarés. Vous recevez une déclaration détaillée avec le calcul complet et la date d'échéance pour le paiement.
+                    Chaque mois, la CNSS calcule automatiquement vos cotisations en fonction de votre secteur d'activité et de la masse salariale de vos travailleurs. Vous recevez une déclaration avec le calcul complet et la date d'échéance.
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-              <div className="space-y-4">
-                {declarations.map((declaration) => (
-                  <div key={declaration.id} className="border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center justify-between p-6">
-                      <div className="flex items-center gap-6">
-                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                          <FileText className="w-6 h-6 text-blue-600" />
+              {loadingDeclarations ? (
+                <p className="text-center text-gray-500 py-8">Chargement des déclarations...</p>
+              ) : declarations.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">Aucune déclaration disponible pour le moment.</p>
+              ) : (
+                <div className="space-y-4">
+                  {declarations.map((declaration) => (
+                    <div key={declaration.id} className="border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between p-6">
+                        <div className="flex items-center gap-6">
+                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                            <FileText className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900 mb-1">{declaration.periode}</p>
+                            <p className="text-sm text-gray-600">Émise le: {declaration.dateEmission} • Échéance: {declaration.dateEcheance}</p>
+                            <p className="text-xs text-gray-500 mt-1">{declaration.nombreTravailleurs} travailleurs • {declaration.secteurActivite}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-gray-900 mb-1">{declaration.periode}</p>
-                          <p className="text-sm text-gray-600">Émise le: {declaration.dateEmission} • Échéance: {declaration.dateEcheance}</p>
-                          <p className="text-xs text-gray-500 mt-1">{declaration.nombreTravailleurs} travailleurs • Secteur: {declaration.secteurActivite}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-xl text-gray-900 mb-2">{declaration.montant.toLocaleString()} FCFA</p>
-                        <div className="flex items-center gap-3 justify-end">
-                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                            declaration.statut === 'Payée' ? 'bg-green-100 text-green-700' :
-                            declaration.statut === 'En attente' ? 'bg-orange-100 text-orange-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>
-                            {declaration.statut}
-                          </span>
-                          <button
-                            onClick={() => setSelectedDeclaration(declaration)}
-                            className="text-blue-600 hover:text-blue-700 hover:underline text-sm font-semibold"
-                          >
-                            Voir détails
-                          </button>
+                        <div className="text-right">
+                          <p className="font-bold text-xl text-gray-900 mb-2">{declaration.montant.toLocaleString()} FCFA</p>
+                          <div className="flex items-center gap-3 justify-end">
+                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                              declaration.statut === 'Payée' ? 'bg-green-100 text-green-700' :
+                              declaration.statut === 'En attente' ? 'bg-orange-100 text-orange-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {declaration.statut}
+                            </span>
+                            <button
+                              onClick={() => setSelectedDeclaration(declaration)}
+                              className="text-blue-600 hover:text-blue-700 hover:underline text-sm font-semibold"
+                            >
+                              Voir détails
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
 
       case 'paiements':
-        if (selectedPaiement) {
-          return (
-            <div className="space-y-6">
-              <div>
-                <button
-                  onClick={() => {
-                    setSelectedPaiement(null);
-                    setSelectedModePaiement(null);
-                  }}
-                  className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4 font-semibold"
-                >
-                  ← Retour aux paiements
-                </button>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Paiement - {selectedPaiement.periode}
-                </h2>
-                <p className="text-gray-600">Choisissez votre mode de paiement et suivez les instructions</p>
-              </div>
-
-              {/* Récapitulatif du paiement */}
-              <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Récapitulatif</h3>
-                <div className="bg-blue-50 rounded-lg p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-blue-600 mb-1">Montant à payer</p>
-                      <p className="text-4xl font-bold text-blue-900">{selectedPaiement.montant.toLocaleString()} FCFA</p>
-                      <p className="text-sm text-gray-600 mt-2">Période: {selectedPaiement.periode}</p>
-                      <p className="text-sm text-gray-600">Échéance: {selectedPaiement.dateEcheance}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Choix du mode de paiement */}
-              <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Choisissez votre mode de paiement</h3>
-                <div className="grid md:grid-cols-3 gap-4 mb-6">
-                  <button
-                    onClick={() => setSelectedModePaiement('carte')}
-                    className={`p-6 border-2 rounded-lg transition-all text-center ${
-                      selectedModePaiement === 'carte'
-                        ? 'border-blue-500 bg-blue-50 scale-105'
-                        : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                    }`}
-                  >
-                    <CreditCard className="w-10 h-10 text-blue-600 mx-auto mb-3" />
-                    <p className="font-bold text-gray-900">Carte bancaire</p>
-                    <p className="text-xs text-gray-600 mt-1">Visa, Mastercard</p>
-                  </button>
-                  <button
-                    onClick={() => setSelectedModePaiement('mobile')}
-                    className={`p-6 border-2 rounded-lg transition-all text-center ${
-                      selectedModePaiement === 'mobile'
-                        ? 'border-blue-500 bg-blue-50 scale-105'
-                        : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                    }`}
-                  >
-                    <CreditCard className="w-10 h-10 text-blue-600 mx-auto mb-3" />
-                    <p className="font-bold text-gray-900">Mobile Money</p>
-                    <p className="text-xs text-gray-600 mt-1">MTN, Moov, Celtiis</p>
-                  </button>
-                  <button
-                    onClick={() => setSelectedModePaiement('virement')}
-                    className={`p-6 border-2 rounded-lg transition-all text-center ${
-                      selectedModePaiement === 'virement'
-                        ? 'border-blue-500 bg-blue-50 scale-105'
-                        : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-                    }`}
-                  >
-                    <CreditCard className="w-10 h-10 text-blue-600 mx-auto mb-3" />
-                    <p className="font-bold text-gray-900">Virement bancaire</p>
-                    <p className="text-xs text-gray-600 mt-1">Transfert bancaire</p>
-                  </button>
-                </div>
-
-                {/* Instructions selon le mode de paiement */}
-                {selectedModePaiement === 'carte' && (
-                  <div className="border-t pt-6">
-                    <h4 className="font-bold text-gray-900 mb-4">Paiement par carte bancaire</h4>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Numéro de carte
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="1234 5678 9012 3456"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Date d'expiration
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="MM/AA"
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            CVV
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="123"
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-                      <button className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
-                        Valider le paiement
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {selectedModePaiement === 'mobile' && (
-                  <div className="border-t pt-6">
-                    <h4 className="font-bold text-gray-900 mb-4">Paiement par Mobile Money</h4>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Opérateur
-                        </label>
-                        <select className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                          <option>MTN Mobile Money</option>
-                          <option>Moov Money</option>
-                          <option>Celtiis Cash</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Numéro de téléphone
-                        </label>
-                        <input
-                          type="tel"
-                          placeholder="+229 XX XX XX XX"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <p className="text-sm text-yellow-800">
-                          <strong>Instructions:</strong> Après avoir cliqué sur "Valider le paiement", vous recevrez une notification sur votre téléphone. Composez votre code PIN pour confirmer le paiement.
-                        </p>
-                      </div>
-                      <button className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
-                        Valider le paiement
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {selectedModePaiement === 'virement' && (
-                  <div className="border-t pt-6">
-                    <h4 className="font-bold text-gray-900 mb-4">Paiement par virement bancaire</h4>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 space-y-4">
-                      <div>
-                        <p className="text-sm text-blue-600 mb-1">Bénéficiaire</p>
-                        <p className="font-bold text-gray-900">CNSS Bénin</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-blue-600 mb-1">Banque</p>
-                        <p className="font-bold text-gray-900">Bank of Africa Bénin</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-blue-600 mb-1">IBAN</p>
-                        <p className="font-bold text-gray-900 font-mono">BJ06 BJ123 45678 90123 45678 901</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-blue-600 mb-1">Code SWIFT/BIC</p>
-                        <p className="font-bold text-gray-900 font-mono">AFRIBJBJXXX</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-blue-600 mb-1">Référence à mentionner</p>
-                        <p className="font-bold text-gray-900 font-mono">CNSS-{selectedPaiement.periode.replace(' ', '-')}-{selectedPaiement.id}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-blue-600 mb-1">Montant</p>
-                        <p className="font-bold text-gray-900 text-xl">{selectedPaiement.montant.toLocaleString()} FCFA</p>
-                      </div>
-                    </div>
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
-                      <p className="text-sm text-yellow-800">
-                        <strong>Important:</strong> Après avoir effectué le virement, veuillez télécharger la preuve de paiement ci-dessous. Le traitement de votre paiement peut prendre 2 à 3 jours ouvrables.
-                      </p>
-                    </div>
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Télécharger la preuve de paiement
-                      </label>
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Formats acceptés: PDF, JPG, PNG (max 5MB)</p>
-                    </div>
-                    <button className="w-full mt-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold">
-                      Soumettre la preuve de paiement
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        }
-
         return (
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Paiements</h2>
-              <p className="text-gray-600">Payez vos cotisations en ligne</p>
+              <p className="text-gray-600">Payez vos cotisations via FedaPay</p>
             </div>
+
+            {paiementErreur && (
+              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-lg p-4">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                <p className="text-sm text-red-700">{paiementErreur}</p>
+                <button onClick={() => setPaiementErreur(null)} className="ml-auto text-red-600"><X className="w-4 h-4" /></button>
+              </div>
+            )}
+            {paiementSucces && (
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg p-4">
+                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                <p className="text-sm text-green-700">{paiementSucces}</p>
+                <button onClick={() => setPaiementSucces(null)} className="ml-auto text-green-600"><X className="w-4 h-4" /></button>
+              </div>
+            )}
 
             <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-4">Cotisations à payer</h3>
-              <div className="space-y-4">
-                {declarations.filter(d => d.statut !== 'Payée').map((declaration) => (
-                  <div key={declaration.id} className="flex items-center justify-between p-6 border-2 border-orange-200 rounded-lg bg-orange-50">
-                    <div>
-                      <p className="font-bold text-gray-900 mb-1">{declaration.periode}</p>
-                      <p className="text-sm text-gray-600">Échéance: {declaration.dateEcheance}</p>
+              {loadingDeclarations ? (
+                <p className="text-center text-gray-500 py-8">Chargement...</p>
+              ) : declarations.filter(d => d.statut !== 'Payée').length === 0 ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <p className="text-gray-600 font-semibold">Toutes vos cotisations sont à jour !</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {declarations.filter(d => d.statut !== 'Payée').map((declaration) => (
+                    <div key={declaration.id} className={`flex items-center justify-between p-6 border-2 rounded-lg ${
+                      declaration.statut === 'En retard' ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50'
+                    }`}>
+                      <div>
+                        <p className="font-bold text-gray-900 mb-1">{declaration.periode}</p>
+                        <p className="text-sm text-gray-600">Échéance: {declaration.dateEcheance}</p>
+                        <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          declaration.statut === 'En retard' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                        }`}>
+                          {declaration.statut}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-2xl text-gray-900 mb-3">{declaration.montant.toLocaleString()} FCFA</p>
+                        <button
+                          onClick={() => handlePaiementCotisation(declaration)}
+                          disabled={paiementEnCoursId === declaration.id}
+                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                          <CreditCard className="w-5 h-5" />
+                          {paiementEnCoursId === declaration.id ? 'Redirection...' : 'Payer via FedaPay'}
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-2xl text-gray-900 mb-2">{declaration.montant.toLocaleString()} FCFA</p>
-                      <button
-                        onClick={() => setSelectedPaiement(declaration)}
-                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2"
-                      >
-                        <CreditCard className="w-5 h-5" />
-                        Payer maintenant
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Moyens de paiement disponibles</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Moyens de paiement disponibles via FedaPay</h3>
               <div className="grid md:grid-cols-3 gap-4">
                 <div className="p-4 border-2 border-gray-200 rounded-lg text-center">
                   <CreditCard className="w-8 h-8 text-blue-600 mx-auto mb-2" />
@@ -1103,6 +1128,9 @@ export function EmployeurDashboard() {
                   <p className="text-xs text-gray-600 mt-1">Transfert bancaire</p>
                 </div>
               </div>
+              <p className="text-xs text-gray-500 mt-4 text-center">
+                Vous serez redirigé vers la plateforme sécurisée FedaPay pour finaliser votre paiement.
+              </p>
             </div>
           </div>
         );
@@ -1124,29 +1152,35 @@ export function EmployeurDashboard() {
                 </button>
               </div>
 
-              <div className="space-y-3">
-                {declarations.map((declaration) => (
-                  <div key={declaration.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <History className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-semibold text-gray-900">Déclaration {declaration.periode}</p>
-                        <p className="text-sm text-gray-600">{declaration.dateEcheance}</p>
+              {loadingDeclarations ? (
+                <p className="text-center text-gray-500 py-8">Chargement...</p>
+              ) : declarations.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">Aucune transaction disponible.</p>
+              ) : (
+                <div className="space-y-3">
+                  {declarations.map((declaration) => (
+                    <div key={declaration.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <History className="w-5 h-5 text-gray-400" />
+                        <div>
+                          <p className="font-semibold text-gray-900">Déclaration {declaration.periode}</p>
+                          <p className="text-sm text-gray-600">{declaration.dateEcheance}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">{declaration.montant.toLocaleString()} FCFA</p>
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                          declaration.statut === 'Payée' ? 'bg-green-100 text-green-700' :
+                          declaration.statut === 'En attente' ? 'bg-orange-100 text-orange-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {declaration.statut}
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900">{declaration.montant.toLocaleString()} FCFA</p>
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                        declaration.statut === 'Payée' ? 'bg-green-100 text-green-700' :
-                        declaration.statut === 'En attente' ? 'bg-orange-100 text-orange-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {declaration.statut}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -1171,51 +1205,24 @@ export function EmployeurDashboard() {
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
-          <button
-            onClick={() => setActiveTab('apercu')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              activeTab === 'apercu' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <Home className="w-5 h-5" />
-            <span className="font-medium">Aperçu</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('travailleurs')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              activeTab === 'travailleurs' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <Users className="w-5 h-5" />
-            <span className="font-medium">Travailleurs</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('declarations')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              activeTab === 'declarations' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <FileText className="w-5 h-5" />
-            <span className="font-medium">Déclarations</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('paiements')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              activeTab === 'paiements' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <CreditCard className="w-5 h-5" />
-            <span className="font-medium">Paiements</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('historique')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              activeTab === 'historique' ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <History className="w-5 h-5" />
-            <span className="font-medium">Historique</span>
-          </button>
+          {([
+            { key: 'apercu', label: 'Aperçu', Icon: Home },
+            { key: 'travailleurs', label: 'Travailleurs', Icon: Users },
+            { key: 'declarations', label: 'Déclarations', Icon: FileText },
+            { key: 'paiements', label: 'Paiements', Icon: CreditCard },
+            { key: 'historique', label: 'Historique', Icon: History },
+          ] as const).map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                activeTab === key ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="font-medium">{label}</span>
+            </button>
+          ))}
         </nav>
 
         <div className="p-4 border-t border-gray-200 space-y-2">
@@ -1287,6 +1294,7 @@ export function EmployeurDashboard() {
                     setMotifDesactivation('');
                     setFichierJustificatif(null);
                   }}
+                  aria-label="Fermer"
                   className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   <X className="w-6 h-6" />
@@ -1299,11 +1307,9 @@ export function EmployeurDashboard() {
                 <div className="flex gap-3">
                   <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-yellow-900 mb-1">
-                      Important
-                    </p>
+                    <p className="text-sm font-semibold text-yellow-900 mb-1">Important</p>
                     <p className="text-xs text-yellow-800">
-                      La désactivation d'un travailleur nécessite l'envoi de justificatifs. Cette action sera soumise à validation par la CNSS avant d'être effective. Le travailleur restera dans votre liste avec le statut "En attente de validation" jusqu'à la confirmation.
+                      La désactivation nécessite des justificatifs et sera soumise à validation par la CNSS sous 3 à 5 jours ouvrables.
                     </p>
                   </div>
                 </div>
@@ -1317,7 +1323,6 @@ export function EmployeurDashboard() {
                   value={motifDesactivation}
                   onChange={(e) => setMotifDesactivation(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
                 >
                   <option value="">Sélectionnez un motif</option>
                   <option value="licenciement">Licenciement</option>
@@ -1337,61 +1342,45 @@ export function EmployeurDashboard() {
                   <div className="text-center">
                     <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <label className="cursor-pointer">
-                      <span className="text-blue-600 hover:text-blue-700 font-semibold">
-                        Cliquez pour télécharger
-                      </span>
+                      <span className="text-blue-600 hover:text-blue-700 font-semibold">Cliquez pour télécharger</span>
                       <span className="text-gray-600"> ou glissez-déposez</span>
                       <input
                         type="file"
                         accept=".pdf,.jpg,.jpeg,.png"
                         onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) {
-                            setFichierJustificatif(e.target.files[0]);
-                          }
+                          if (e.target.files?.[0]) setFichierJustificatif(e.target.files[0]);
                         }}
                         className="hidden"
                       />
                     </label>
-                    <p className="text-xs text-gray-500 mt-2">
-                      PDF, JPG ou PNG (max 10MB)
-                    </p>
+                    <p className="text-xs text-gray-500 mt-2">PDF, JPG ou PNG (max 10MB)</p>
                   </div>
                   {fichierJustificatif && (
                     <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <CheckCircle className="w-5 h-5 text-green-600" />
-                          <span className="text-sm text-green-900 font-medium">
-                            {fichierJustificatif.name}
-                          </span>
+                          <span className="text-sm text-green-900 font-medium">{fichierJustificatif.name}</span>
                         </div>
-                        <button
-                          onClick={() => setFichierJustificatif(null)}
-                          className="text-red-600 hover:text-red-700"
-                        >
+                        <button onClick={() => setFichierJustificatif(null)} className="text-red-600 hover:text-red-700">
                           <X className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Documents acceptés : lettre de licenciement, lettre de démission, certificat de travail, attestation de fin de contrat, acte de décès, etc.
-                </p>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex gap-3">
                   <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-blue-900 mb-1">
-                      Que se passe-t-il ensuite ?
-                    </p>
+                    <p className="text-sm font-semibold text-blue-900 mb-1">Que se passe-t-il ensuite ?</p>
                     <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
                       <li>Votre demande sera envoyée à la CNSS avec les justificatifs</li>
-                      <li>Un agent CNSS examinera votre dossier sous 3 à 5 jours ouvrables</li>
-                      <li>Vous recevrez une notification par email de la décision</li>
-                      <li>Si validée, le travailleur sera désactivé et n'apparaîtra plus dans vos déclarations futures</li>
+                      <li>Un agent examinera votre dossier sous 3 à 5 jours ouvrables</li>
+                      <li>Vous recevrez une notification par email</li>
+                      <li>Si validée, le travailleur n'apparaîtra plus dans vos déclarations futures</li>
                     </ul>
                   </div>
                 </div>
@@ -1416,8 +1405,7 @@ export function EmployeurDashboard() {
                     alert('Veuillez remplir tous les champs obligatoires');
                     return;
                   }
-                  // Ici on simule l'envoi
-                  alert(`Demande de désactivation envoyée pour ${travailleurADesactiver.prenom} ${travailleurADesactiver.nom}. Vous recevrez une notification une fois la demande traitée par la CNSS.`);
+                  alert(`Demande envoyée pour ${travailleurADesactiver.prenom} ${travailleurADesactiver.nom}. Vous serez notifié par email.`);
                   setShowDesactivationModal(false);
                   setTravailleurADesactiver(null);
                   setMotifDesactivation('');

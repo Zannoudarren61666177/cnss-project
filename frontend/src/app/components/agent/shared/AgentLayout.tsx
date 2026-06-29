@@ -102,10 +102,14 @@ export function AgentLayout({ role: userRole, userName = 'Agent CNSS', children 
               {role.badge}
             </span>
             <button
+              type="button"
               onClick={() => { window.location.href = '/agent/notifications'; }}
               className="relative p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="Voir les notifications"
+              title="Voir les notifications"
             >
               <Bell className="w-5 h-5" />
+              <span className="sr-only">Voir les notifications</span>
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             </button>
           </div>

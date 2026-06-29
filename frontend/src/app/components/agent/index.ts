@@ -7,3 +7,12 @@ export { AgentPrestations } from './AgentPrestations';
 export { AgentSupport } from './AgentSupport';
 export { AdminDashboard } from './AdminDashboard';
 export { AgentLayout } from './shared/AgentLayout';
+
+export {
+  AgentDashboard,
+  AgentImmatriculationDashboard,
+  AgentCotisationDashboard,
+  AgentPrestationsDashboard,
+  AgentSupportDashboard,
+  AdminDashboardPage,
+} from '../AgentDashboard';

@@ -5,5 +5,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class Faq extends Model
 {
-    protected $fillable = ['question', 'reponse', 'categorie', 'vues', 'actif'];
+    protected $fillable = [
+        'question',
+        'reponse',
+        'categorie',
+        'actif',
+    ];
+
+    protected $casts = [
+        'actif' => 'boolean',
+        'vues'  => 'integer',
+    ];
 }

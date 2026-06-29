@@ -10,7 +10,7 @@ class Cotisation extends Model
 
     protected $fillable = [
         'employeur_id', 'montant', 'mois', 'annee', 'status',
-        'reference', 'echeance',
+        'reference', 'echeance', 'transaction_id', 'date_paiement',
     ];
 
     protected $appends = ['statut', 'periode', 'montant_formate'];
