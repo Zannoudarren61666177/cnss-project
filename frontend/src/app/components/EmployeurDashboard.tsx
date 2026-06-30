@@ -1109,27 +1109,27 @@ export function EmployeurDashboard() {
               )}
             </div>
 
-            <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Moyens de paiement disponibles via FedaPay</h3>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="p-4 border-2 border-gray-200 rounded-lg text-center">
-                  <CreditCard className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                  <p className="font-semibold">Carte bancaire</p>
-                  <p className="text-xs text-gray-600 mt-1">Visa, Mastercard</p>
+            <div className="bg-white rounded-xl shadow-md border border-gray-200 p-3">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Moyens de paiement disponibles</h3>
+              <div className="grid md:grid-cols-3 gap-2">
+                <div className="p-2 border border-gray-200 rounded-lg text-center">
+                  <CreditCard className="w-4 h-4 text-blue-600 mx-auto mb-1" />
+                  <p className="text-xs font-medium">Carte bancaire</p>
+                  <p className="text-xs text-gray-500">Visa, Mastercard</p>
                 </div>
-                <div className="p-4 border-2 border-gray-200 rounded-lg text-center">
-                  <CreditCard className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                  <p className="font-semibold">Mobile Money</p>
-                  <p className="text-xs text-gray-600 mt-1">MTN, Moov, Celtiis</p>
+                <div className="p-2 border border-gray-200 rounded-lg text-center">
+                  <CreditCard className="w-4 h-4 text-blue-600 mx-auto mb-1" />
+                  <p className="text-xs font-medium">Mobile Money</p>
+                  <p className="text-xs text-gray-500">MTN, Moov, Celtiis</p>
                 </div>
-                <div className="p-4 border-2 border-gray-200 rounded-lg text-center">
-                  <CreditCard className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                  <p className="font-semibold">Virement bancaire</p>
-                  <p className="text-xs text-gray-600 mt-1">Transfert bancaire</p>
+                <div className="p-2 border border-gray-200 rounded-lg text-center">
+                  <CreditCard className="w-4 h-4 text-blue-600 mx-auto mb-1" />
+                  <p className="text-xs font-medium">Virement bancaire</p>
+                  <p className="text-xs text-gray-500">Transfert bancaire</p>
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mt-4 text-center">
-                Vous serez redirigé vers la plateforme sécurisée FedaPay pour finaliser votre paiement.
+              <p className="text-xs text-gray-400 mt-2 text-center">
+                Redirection vers plateforme sécurisée
               </p>
             </div>
           </div>

@@ -239,7 +239,6 @@ export function SignupPage() {
     adresseEntreprise: '',
     telephoneEntreprise: '',
     email: '',
-    secteurActivite: '',
     nom: '',
     prenom: '',
     npi: '',

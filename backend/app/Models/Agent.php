@@ -16,6 +16,9 @@ class Agent extends Model
         'department',
         'phone',
         'email',
+        'nom',
+        'prenoms',
+        'numero_immatriculation',
         'password',
     ];
 

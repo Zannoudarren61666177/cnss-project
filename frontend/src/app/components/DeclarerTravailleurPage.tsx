@@ -9,7 +9,11 @@ import { createTravailleur } from '../api';
 export function DeclarerTravailleurPage() {
   const navigate = useNavigate();
   const { user } = useUser();
-  const dashboardRoute = user ? (user.role === 'agent' ? '/agent/immatriculation' : '/employeur/tableau-de-bord') : '/';
+  const dashboardRoute = user
+    ? (user.role === 'admin' ? '/admin'
+      : user.role === 'agent' ? '/agent/immatriculation'
+      : '/employeur/tableau-de-bord')
+    : '/';
   const employeurId = user?.profile?.id ?? user?.employeur?.id;
 
   const [formData, setFormData] = useState({

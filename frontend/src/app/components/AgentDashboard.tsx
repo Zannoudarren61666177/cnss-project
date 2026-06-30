@@ -30,12 +30,20 @@ function useAgentName(defaultName: string) {
   const { user, loading } = useUser();
   if (loading) return defaultName;
   if (!user) return defaultName;
-  const profileName =
+
+  const profile = (user as any)?.profile ?? {};
+  const firstName = profile.first_name ?? profile.nom ?? '';
+  const lastName = profile.last_name ?? profile.prenom ?? '';
+  const fullName = `${firstName} ${lastName}`.trim();
+
+  if (fullName) return fullName;
+  return (
     (user as any)?.agent?.display_name ??
     (user as any)?.agent?.name ??
     (user as any)?.profile?.company_name ??
-    (user as any)?.name;
-  return profileName || defaultName;
+    (user as any)?.name ??
+    defaultName
+  );
 }
 
 export function AgentImmatriculationDashboard() {
@@ -59,6 +67,5 @@ export function AgentSupportDashboard() {
 }
 
 export function AdminDashboardPage() {
-  const name = useAgentName('Administrateur');
-  return <AgentDashboard role="admin" userName={name} />;
+  return <AgentDashboard role="admin" userName="Administrateur" />;
 }

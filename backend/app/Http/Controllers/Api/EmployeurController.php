@@ -25,6 +25,9 @@ class EmployeurController extends Controller
         'type_employeur'          => ['required', 'string', 'max:50'],
         'company_name'            => ['required', 'string', 'max:255'],
         'ifu'                      => ['nullable', 'string', 'max:50'],
+        'siret'                    => ['nullable', 'string', 'max:50'],
+        'secteur'                  => ['nullable', 'string', 'max:255'],
+        'forme_juridique'         => ['nullable', 'string', 'max:255'],
         'address'                  => ['required', 'string', 'max:255'],
         'phone'                    => ['required', 'string', 'max:50'],
         'email'                    => ['required', 'email', 'max:255'],
@@ -88,9 +91,15 @@ class EmployeurController extends Controller
             'address' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:255'],
+            'password' => ['nullable', 'string', 'min:8'],
         ]);
 
         $employeur->update($data);
+
+        if (isset($data['password']) && $employeur->user) {
+            $employeur->user->update(['password' => Hash::make($data['password'])]);
+            $employeur->update(['password' => Hash::make($data['password'])]);
+        }
 
         return response()->json($employeur);
     }
@@ -98,7 +107,12 @@ class EmployeurController extends Controller
     public function destroy(string $id)
     {
         $employeur = Employeur::findOrFail($id);
+        $user = $employeur->user;
         $employeur->delete();
+
+        if ($user) {
+            $user->delete();
+        }
 
         return response()->json(['message' => 'Employeur supprimé']);
     }
