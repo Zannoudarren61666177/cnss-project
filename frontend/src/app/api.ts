@@ -123,9 +123,6 @@ export async function getEmployeurs(): Promise<any[]> {
 export async function getEmployeur(id: number | string): Promise<any> {
   return apiFetch(`/employeurs/${id}`);
 }
-export async function updateEmployeur(id: number | string, data: Record<string, any>): Promise<any> {
-  return apiFetch(`/employeurs/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-}
 export async function validerEmployeur(id: number): Promise<any> {
   return apiFetch(`/employeurs/${id}/valider`, { method: 'POST' });
 }
@@ -250,8 +247,38 @@ export async function rejeterPrestation(id: number): Promise<any> {
 export async function getAgents(): Promise<any[]> {
   return apiFetch('/agents');
 }
+export async function createAgent(data: {
+  numero_cnss: string;
+  email: string;
+  password: string;
+  type: string;
+  department?: string;
+  phone?: string;
+  first_name?: string;
+  last_name?: string;
+}): Promise<any> {
+  return apiFetch('/agents', { method: 'POST', body: JSON.stringify(data) });
+}
 export async function updateAgentRole(id: number, role: string): Promise<any> {
   return apiFetch(`/agents/${id}`, { method: 'PUT', body: JSON.stringify({ type: role }) });
+}
+export async function updateAgent(id: number | string, data: Record<string, any>): Promise<any> {
+  return apiFetch(`/agents/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+export async function deleteAgent(id: number | string): Promise<any> {
+  return apiFetch(`/agents/${id}`, { method: 'DELETE' });
+}
+export async function updateEmployeur(id: number | string, data: Record<string, any>): Promise<any> {
+  return apiFetch(`/employeurs/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+export async function deleteEmployeur(id: number | string): Promise<any> {
+  return apiFetch(`/employeurs/${id}`, { method: 'DELETE' });
+}
+export async function updateTravailleur(id: number | string, data: Record<string, any>): Promise<any> {
+  return apiFetch(`/travailleurs/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+export async function deleteTravailleur(id: number | string): Promise<any> {
+  return apiFetch(`/travailleurs/${id}`, { method: 'DELETE' });
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

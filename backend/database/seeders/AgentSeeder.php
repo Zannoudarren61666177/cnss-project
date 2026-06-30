@@ -52,6 +52,8 @@ class AgentSeeder extends Seeder
                     'department' => $p['department'],
                     'phone'      => '+229 97 11 11 11',
                     'email'      => $user->email,
+                    'first_name' => 'Agent',
+                    'last_name'  => $p['label'],
                 ]
             );
         }

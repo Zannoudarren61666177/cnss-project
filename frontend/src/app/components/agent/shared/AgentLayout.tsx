@@ -96,6 +96,11 @@ export function AgentLayout({ role: userRole, userName = 'Agent CNSS', children 
           <div>
             <h1 className="text-lg font-bold text-gray-900">{userName}</h1>
             <p className="text-xs text-gray-500">{role.label} · CNSS Siège Cotonou</p>
+            {user && (
+              <p className="text-xs text-gray-500 mt-1">
+                N° immatriculation : <span className="font-mono">{user.profile?.numero_cnss ?? user.name}</span>
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <span className={`hidden sm:inline-block px-3 py-1 rounded-full text-xs font-semibold ${role.color}`}>

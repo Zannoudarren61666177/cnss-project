@@ -244,15 +244,9 @@ export function AgentImmatriculation() {
                         onClick={async () => {
                           try {
                             const res = await validerEmployeur(emp.id);
-                            if (res && res.employeur) {
-                              const updated = res.employeur;
-                              setAllEmployeurs(prev => prev.map(p => p.id === updated.id ? updated : p));
-                              setEmployeurs(prev => prev.filter(e => e.id !== updated.id));
-                            } else {
-                              const data = await getEmployeurs();
-                              setAllEmployeurs(data as any[]);
-                              setEmployeurs((data as any[]).filter(e => e.statut === 'en_attente' || e.statut === 'en attente'));
-                            }
+                            const data = await getEmployeurs();
+                            setAllEmployeurs(data as any[]);
+                            setEmployeurs((data as any[]).filter(e => e.statut === 'en_attente' || e.statut === 'en attente'));
                             showToast(res?.message || 'Employeur validé et e-mail envoyé.');
                           } catch (err: any) {
                             showToast(err?.message || 'Erreur lors de la validation', 'error');
@@ -302,34 +296,131 @@ export function AgentImmatriculation() {
               {!selectedDetail ? (
                 <p className="text-gray-500">Chargement...</p>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-6">
+                  {/* Informations de l'entreprise */}
                   <div>
-                    <p className="text-sm text-gray-500">Raison sociale</p>
-                    <p className="font-semibold text-gray-900">{selectedDetail.company_name}</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Informations de l'entreprise</h3>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Raison sociale</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.company_name ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Type d'employeur</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.type_employeur ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">IFU</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.ifu ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">SIRET</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.siret ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Secteur d'activité</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.secteur ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Forme juridique</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.forme_juridique ?? '—'}</p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <p className="text-sm text-gray-500">Adresse</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.address ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Téléphone</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.phone ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Email</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.email ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Numéro CNSS</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.numero_cnss ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Statut</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.statut ?? '—'}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div><p className="text-sm text-gray-500">Adresse</p><p className="font-medium text-gray-900">{selectedDetail.address}</p></div>
-                    <div><p className="text-sm text-gray-500">Téléphone</p><p className="font-medium text-gray-900">{selectedDetail.phone}</p></div>
-                    <div><p className="text-sm text-gray-500">Email</p><p className="font-medium text-gray-900">{selectedDetail.email}</p></div>
-                    <div><p className="text-sm text-gray-500">Numéro CNSS</p><p className="font-medium text-gray-900">{selectedDetail.numero_cnss ?? '—'}</p></div>
-                  </div>
+
+                  {/* Représentant légal */}
                   <div>
-                    <p className="text-sm text-gray-500">Pièces justificatives</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Représentant légal</h3>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Nom</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.nom_representant ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Prénom</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.prenom_representant ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">NPI</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.npi_representant ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Téléphone</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.telephone_representant ?? '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pièces justificatives */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Pièces justificatives</h3>
                     {selectedDetail.pieces_justificatives && Object.keys(selectedDetail.pieces_justificatives).length > 0 ? (
-                      <ul className="mt-2 space-y-2">
+                      <div className="grid sm:grid-cols-2 gap-3">
                         {Object.entries(selectedDetail.pieces_justificatives).map(([key, val]: any) => {
-                          const url = getFileUrl(String(val));
+                          const url = getFileUrl(Array.isArray(val) ? val[0] : val);
+                          const displayName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                           return (
-                            <li key={key} className="text-sm">
-                              <span className="text-gray-700 font-medium">{key}:</span>{' '}
-                              {url ? <a href={url} target="_blank" rel="noreferrer" className="text-blue-600 underline">Ouvrir</a> : <span className="text-gray-500">{String(val)}</span>}
-                            </li>
+                            <div key={key} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <span className="text-blue-600 text-xs font-bold">PDF</span>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{displayName}</p>
+                                  <p className="text-xs text-gray-500">{Array.isArray(val) ? `${val.length} fichier(s)` : '1 fichier'}</p>
+                                </div>
+                              </div>
+                              {url ? (
+                                <a href={url} target="_blank" rel="noreferrer" className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+                                  Voir
+                                </a>
+                              ) : (
+                                <span className="text-xs text-gray-400">Non disponible</span>
+                              )}
+                            </div>
                           );
                         })}
-                      </ul>
+                      </div>
                     ) : (
-                      <p className="text-sm text-gray-500">Aucune pièce téléversée.</p>
+                      <div className="p-4 bg-gray-50 rounded-lg text-center">
+                        <p className="text-sm text-gray-500">Aucune pièce téléversée.</p>
+                      </div>
                     )}
+                  </div>
+
+                  {/* Dates */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Dates</h3>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Date de création</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.created_at ? new Date(selectedDetail.created_at).toLocaleString('fr-FR') : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Dernière modification</p>
+                        <p className="font-medium text-gray-900">{selectedDetail.updated_at ? new Date(selectedDetail.updated_at).toLocaleString('fr-FR') : '—'}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -347,6 +438,7 @@ export function AgentImmatriculation() {
           try {
             await rejeterEmployeur(rejectTarget.id, raison);
             const data = await getEmployeurs();
+            setAllEmployeurs(data as any[]);
             setEmployeurs((data as any[]).filter(e => e.statut === 'en_attente' || e.statut === 'en attente'));
             setShowRejectModal(false);
             setRejectTarget(null);

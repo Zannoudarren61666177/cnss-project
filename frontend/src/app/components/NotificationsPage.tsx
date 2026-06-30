@@ -127,11 +127,9 @@ export function NotificationsPage() {
 
   const { user } = useUser();
   const dashboardRoute = user
-    ? (user.role === 'agent'
-      ? '/agent/immatriculation'
-      : user.role === 'travailleur'
-        ? '/travailleur/tableau-de-bord'
-        : '/employeur/tableau-de-bord')
+    ? (user.role === 'admin' ? '/admin'
+      : user.role === 'agent' ? '/agent/immatriculation'
+        : user.role === 'travailleur' ? '/travailleur/tableau-de-bord' : '/employeur/tableau-de-bord')
     : '/';
 
   return (

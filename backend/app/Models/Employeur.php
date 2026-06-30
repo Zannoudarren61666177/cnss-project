@@ -14,6 +14,12 @@ class Employeur extends Model
         'statut', 'numero_cnss', 'secteur', 'forme_juridique', 'password',
         'pieces_justificatives',
         'raison_rejet',
+        'type_employeur',
+        'ifu',
+        'nom_representant',
+        'prenom_representant',
+        'npi_representant',
+        'telephone_representant',
     ];
 
     protected $appends = ['raison_sociale', 'adresse', 'telephone', 'nb_travailleurs'];
