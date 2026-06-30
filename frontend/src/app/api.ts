@@ -322,3 +322,22 @@ export async function verifierPaiementFedaPay(
 }
 
 export { apiFetch };
+
+
+// ─── Prestations (travailleur) ────────────────────────────────────────────────
+export async function demanderPrestation(data: {
+  type: string;
+  montant: number;
+  motif: string;
+  date_debut?: string;
+  date_fin?: string;
+}): Promise<any> {
+  return apiFetch('/prestations/demander', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getMesPrestations(): Promise<any[]> {
+  return apiFetch('/prestations/mes-prestations');
+}

@@ -18,9 +18,11 @@ import {
   Baby,
   Accessibility,
   Activity,
-  Eye,
   Lock,
   Loader2,
+  Plus,
+  X,
+  Send,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { CNSSLogo } from './CNSSLogo';
@@ -34,7 +36,10 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   downloadMonAttestationTravailleur,
+  demanderPrestation,
+  getMesPrestations,
 } from '../api';
+import CnssToast from './CnssToast';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,9 +69,31 @@ interface Droit {
   mois_requis: number;
 }
 
+interface MaPrestation {
+  id: number;
+  reference: string;
+  type: string;
+  montant: number;
+  status: string;
+  motif: string;
+  date_debut: string | null;
+  date_fin: string | null;
+  raison_rejet: string | null;
+  created_at: string;
+}
+
 const MOIS_LABELS = [
   '', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+];
+
+const TYPES_PRESTATION = [
+  'Prestation familiale',
+  'Risques professionnels',
+  'Pension de retraite',
+  'Pension d\'invalidité',
+  'Allocation de maternité',
+  'Capital décès',
 ];
 
 function formatPeriode(mois: string | number | null, annee: number | null): string {
@@ -136,6 +163,17 @@ function getStatutBadge(statut: string | undefined) {
       <CheckCircle className="w-3 h-3" /> {s.label}
     </span>
   );
+}
+
+function prestationStatutBadge(status: string) {
+  const val = status?.toLowerCase() ?? '';
+  if (val.includes('approuv')) {
+    return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700"><CheckCircle className="w-3 h-3" /> Approuvée</span>;
+  }
+  if (val.includes('rejet')) {
+    return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700"><X className="w-3 h-3" /> Rejetée</span>;
+  }
+  return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700"><Clock className="w-3 h-3" /> En attente</span>;
 }
 
 // ─── Sub-views ────────────────────────────────────────────────────────────────
@@ -315,7 +353,26 @@ function MaSituation({
   );
 }
 
-function DroitsEtPrestations({ droits, loading }: { droits: Droit[]; moisCotises: number; loading: boolean }) {
+function DroitsEtPrestations({
+  droits,
+  loading,
+  mesPrestations,
+  loadingPrestations,
+  onSubmitDemande,
+  submitting,
+}: {
+  droits: Droit[];
+  moisCotises: number;
+  loading: boolean;
+  mesPrestations: MaPrestation[];
+  loadingPrestations: boolean;
+  onSubmitDemande: (data: { type: string; montant: number; motif: string; date_debut?: string; date_fin?: string }) => Promise<boolean>;
+  submitting: boolean;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ type: '', montant: '', motif: '', date_debut: '', date_fin: '' });
+  const [formError, setFormError] = useState<string | null>(null);
+
   const prestations = droits.map((d, i) => ({
     id: i + 1,
     nom: d.nom,
@@ -330,6 +387,35 @@ function DroitsEtPrestations({ droits, loading }: { droits: Droit[]; moisCotises
       : undefined,
   }));
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+
+    if (!form.type || !form.montant || !form.motif) {
+      setFormError('Veuillez remplir tous les champs obligatoires.');
+      return;
+    }
+
+    const montantNum = parseFloat(form.montant);
+    if (isNaN(montantNum) || montantNum <= 0) {
+      setFormError('Le montant doit être un nombre positif.');
+      return;
+    }
+
+    const success = await onSubmitDemande({
+      type: form.type,
+      montant: montantNum,
+      motif: form.motif,
+      date_debut: form.date_debut || undefined,
+      date_fin: form.date_fin || undefined,
+    });
+
+    if (success) {
+      setForm({ type: '', montant: '', motif: '', date_debut: '', date_fin: '' });
+      setShowForm(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -340,11 +426,135 @@ function DroitsEtPrestations({ droits, loading }: { droits: Droit[]; moisCotises
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-1">Droits & prestations</h2>
-        <p className="text-gray-500 text-sm">Vos droits ouverts et les prestations auxquelles vous pouvez prétendre</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Droits & prestations</h2>
+          <p className="text-gray-500 text-sm">Vos droits ouverts et les prestations auxquelles vous pouvez prétendre</p>
+        </div>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          {showForm ? 'Annuler' : 'Nouvelle demande'}
+        </button>
       </div>
 
+      {/* Formulaire de demande */}
+      {showForm && (
+        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+          <h3 className="font-bold text-gray-900">Soumettre une demande de prestation</h3>
+
+          {formError && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {formError}
+            </div>
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Type de prestation *</label>
+              <select
+                value={form.type}
+                onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- Choisir --</option>
+                {TYPES_PRESTATION.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Montant demandé (FCFA) *</label>
+              <input
+                type="number"
+                min="0"
+                value={form.montant}
+                onChange={e => setForm(f => ({ ...f, montant: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                placeholder="Ex: 150000"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Motif de la demande *</label>
+            <textarea
+              value={form.motif}
+              onChange={e => setForm(f => ({ ...f, motif: e.target.value }))}
+              className="w-full min-h-[100px] rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              placeholder="Expliquez la raison de votre demande..."
+            />
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Date de début (optionnel)</label>
+              <input
+                type="date"
+                value={form.date_debut}
+                onChange={e => setForm(f => ({ ...f, date_debut: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Date de fin (optionnel)</label>
+              <input
+                type="date"
+                value={form.date_fin}
+                onChange={e => setForm(f => ({ ...f, date_fin: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {submitting ? 'Envoi en cours...' : 'Soumettre la demande'}
+          </button>
+        </form>
+      )}
+
+      {/* Mes demandes soumises */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h3 className="font-bold text-gray-900 mb-4">Mes demandes soumises</h3>
+        {loadingPrestations ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+          </div>
+        ) : mesPrestations.length === 0 ? (
+          <p className="text-sm text-gray-500 text-center py-6">Aucune demande soumise pour le moment.</p>
+        ) : (
+          <div className="space-y-3">
+            {mesPrestations.map(p => (
+              <div key={p.id} className="flex items-start justify-between gap-4 p-4 border border-gray-100 rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-sm text-gray-900">{p.type}</p>
+                    {prestationStatutBadge(p.status)}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 font-mono">{p.reference}</p>
+                  <p className="text-xs text-gray-600 mt-1">{p.motif}</p>
+                  {p.raison_rejet && (
+                    <p className="text-xs text-red-600 mt-1">Motif du rejet : {p.raison_rejet}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    Soumise le {new Date(p.created_at).toLocaleDateString('fr-FR')}
+                  </p>
+                </div>
+                <p className="font-bold text-sm text-gray-900 flex-shrink-0">
+                  {Number(p.montant).toLocaleString('fr-FR')} FCFA
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Droits ouverts */}
       <div className="grid sm:grid-cols-3 gap-4">
         {[
           { label: 'Prestations actives', val: String(prestations.filter(p => p.statut === 'eligible').length), color: 'bg-green-50 text-green-700 border-green-200' },
@@ -618,6 +828,14 @@ export function TravailleurDashboard() {
   const [loadingNotifs, setLoadingNotifs] = useState(true);
   const [downloadingAttestation, setDownloadingAttestation] = useState(false);
 
+  // ── Prestations ──
+  const [mesPrestations, setMesPrestations] = useState<MaPrestation[]>([]);
+  const [loadingPrestations, setLoadingPrestations] = useState(true);
+  const [submittingPrestation, setSubmittingPrestation] = useState(false);
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastVariant, setToastVariant] = useState<'success' | 'error' | 'info'>('success');
+
   useEffect(() => {
     if (!user) return;
     let mounted = true;
@@ -647,6 +865,23 @@ export function TravailleurDashboard() {
     })();
 
     return () => { mounted = false; };
+  }, [user]);
+
+  const loadMesPrestations = async () => {
+    setLoadingPrestations(true);
+    try {
+      const data = await getMesPrestations();
+      setMesPrestations(data as MaPrestation[]);
+    } catch (err) {
+      console.error('Erreur chargement prestations', err);
+    } finally {
+      setLoadingPrestations(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    loadMesPrestations();
   }, [user]);
 
   useEffect(() => {
@@ -693,6 +928,26 @@ export function TravailleurDashboard() {
       alert(err?.message || 'Erreur lors du téléchargement');
     } finally {
       setDownloadingAttestation(false);
+    }
+  };
+
+  // ── Soumettre une demande de prestation ──
+  const handleSubmitDemande = async (data: { type: string; montant: number; motif: string; date_debut?: string; date_fin?: string }): Promise<boolean> => {
+    setSubmittingPrestation(true);
+    try {
+      await demanderPrestation(data);
+      await loadMesPrestations();
+      setToastMessage('Votre demande a été transmise à l\'agent prestations.');
+      setToastVariant('success');
+      setToastOpen(true);
+      return true;
+    } catch (err: any) {
+      setToastMessage(err?.message ?? 'Erreur lors de l\'envoi de la demande.');
+      setToastVariant('error');
+      setToastOpen(true);
+      return false;
+    } finally {
+      setSubmittingPrestation(false);
     }
   };
 
@@ -814,7 +1069,15 @@ export function TravailleurDashboard() {
             />
           )}
           {activeTab === 'prestations' && (
-            <DroitsEtPrestations droits={droits} moisCotises={moisCotises} loading={loadingData} />
+            <DroitsEtPrestations
+              droits={droits}
+              moisCotises={moisCotises}
+              loading={loadingData}
+              mesPrestations={mesPrestations}
+              loadingPrestations={loadingPrestations}
+              onSubmitDemande={handleSubmitDemande}
+              submitting={submittingPrestation}
+            />
           )}
           {activeTab === 'documents' && (
             <MesDocuments
@@ -833,6 +1096,8 @@ export function TravailleurDashboard() {
           )}
         </div>
       </main>
+
+      <CnssToast open={toastOpen} message={toastMessage} variant={toastVariant} onClose={() => setToastOpen(false)} />
     </div>
   );
 }

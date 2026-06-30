@@ -1,6 +1,5 @@
 export type RoleId =
   | 'immatriculation'
-  | 'employeur'
   | 'cotisation'
   | 'prestations'
   | 'support'
@@ -15,7 +14,6 @@ export interface Role {
 
 export const ROLES: Role[] = [
   { id: 'immatriculation', label: "Agent d'immatriculation",  color: 'bg-violet-100 text-violet-700', badge: 'Immatriculation' },
-  { id: 'employeur',       label: 'Agent gestion employeurs', color: 'bg-blue-100 text-blue-700',     badge: 'Employeurs'      },
   { id: 'cotisation',      label: 'Agent de cotisation',      color: 'bg-teal-100 text-teal-700',     badge: 'Cotisation'      },
   { id: 'prestations',     label: 'Agent de prestations',     color: 'bg-pink-100 text-pink-700',     badge: 'Prestations'     },
   { id: 'support',         label: 'Agent contenu / support',  color: 'bg-orange-100 text-orange-700', badge: 'Support'         },

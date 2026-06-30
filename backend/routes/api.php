@@ -31,14 +31,14 @@ Route::prefix('v1')->group(function () {
     Route::post('travailleurs/activer-compte',  [TravailleurController::class, 'activerCompte']);
     Route::post('employeurs/demander-adhesion', [EmployeurController::class,   'demanderAdhesion']);
 
-    // FAQ — public
+    // FAQ — public (dev)
     Route::get('faqs',         [FaqController::class, 'index']);
     Route::get('faqs/{id}',    [FaqController::class, 'show']);
     Route::post('faqs',        [FaqController::class, 'store']);
     Route::put('faqs/{id}',    [FaqController::class, 'update']);
     Route::delete('faqs/{id}', [FaqController::class, 'destroy']);
 
-    // Actualités — public
+    // Actualités — public (dev)
     Route::get('actualites',         [ActualiteController::class, 'index']);
     Route::get('actualites/{id}',    [ActualiteController::class, 'show']);
     Route::post('actualites',        [ActualiteController::class, 'store']);
@@ -75,17 +75,19 @@ Route::prefix('v1')->group(function () {
         Route::post('employeurs/{id}/rejeter',   [EmployeurController::class, 'rejeter']);
 
         // Cotisations — routes spécifiques AVANT apiResource
-        Route::get('cotisations/par-employeur/{employeur_id}',       [CotisationController::class, 'parEmployeur']);
-        Route::post('cotisations/generer',                            [CotisationController::class, 'genererPourEmployeur']);
-        Route::post('cotisations/{id}/valider',                       [CotisationController::class, 'valider']);
-        Route::post('cotisations/{id}/relancer',                      [CotisationController::class, 'relancer']);
-        Route::post('cotisations/{id}/initier-paiement',              [CotisationController::class, 'initierPaiement']);
-        Route::post('cotisations/{id}/verifier-paiement',             [CotisationController::class, 'verifierPaiement']);
-        Route::match(['get', 'post'], 'cotisations/paiement/callback',[CotisationController::class, 'callbackPaiement']);
+        Route::get('cotisations/par-employeur/{employeur_id}',        [CotisationController::class, 'parEmployeur']);
+        Route::post('cotisations/generer',                             [CotisationController::class, 'genererPourEmployeur']);
+        Route::post('cotisations/{id}/valider',                        [CotisationController::class, 'valider']);
+        Route::post('cotisations/{id}/relancer',                       [CotisationController::class, 'relancer']);
+        Route::post('cotisations/{id}/initier-paiement',               [CotisationController::class, 'initierPaiement']);
+        Route::post('cotisations/{id}/verifier-paiement',              [CotisationController::class, 'verifierPaiement']);
+        Route::match(['get', 'post'], 'cotisations/paiement/callback', [CotisationController::class, 'callbackPaiement']);
 
         // Prestations — routes spécifiques AVANT apiResource
-        Route::post('prestations/{id}/valider', [PrestationController::class, 'valider']);
-        Route::post('prestations/{id}/rejeter', [PrestationController::class, 'rejeter']);
+        Route::post('prestations/demander',           [PrestationController::class, 'demander']);        // ← travailleur soumet
+        Route::get('prestations/mes-prestations',     [PrestationController::class, 'mesPrestations']); // ← travailleur consulte
+        Route::post('prestations/{id}/valider',       [PrestationController::class, 'valider']);
+        Route::post('prestations/{id}/rejeter',       [PrestationController::class, 'rejeter']);
 
         // Espace travailleur connecté
         Route::get('travailleur/profil',      [TravailleurProfilController::class, 'monProfil']);

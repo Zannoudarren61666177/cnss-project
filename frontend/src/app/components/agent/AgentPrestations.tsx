@@ -10,9 +10,10 @@ import CnssToast from '../CnssToast';
 type StatutPrestation = 'En attente' | 'En cours' | 'Approuvée' | 'Rejetée';
 
 function mapStatut(s: string): StatutPrestation {
-  if (s === 'approuvee' || s === 'approuvée') return 'Approuvée';
-  if (s === 'en_cours') return 'En cours';
-  if (s === 'rejetee' || s === 'rejetée') return 'Rejetée';
+  const val = s?.toLowerCase().trim() ?? '';
+  if (val.includes('approuv'))  return 'Approuvée';
+  if (val.includes('cours'))    return 'En cours';
+  if (val.includes('rejet'))    return 'Rejetée';
   return 'En attente';
 }
 
@@ -20,14 +21,16 @@ function mapPrestation(p: any) {
   return {
     id: p.id,
     ref: p.reference ?? p.ref ?? `PREST-${p.id}`,
-    nom: p.beneficiaire?.name ?? p.travailleur?.name ?? p.nom ?? '—',
+    nom: p.beneficiaire?.name
+      ?? p.travailleur?.name
+      ?? (p.travailleur ? `${p.travailleur.first_name ?? ''} ${p.travailleur.last_name ?? ''}`.trim() : null)
+      ?? p.nom
+      ?? '—',
     type: p.type_prestation ?? p.type ?? '—',
-    date: p.created_at
-      ? new Date(p.created_at).toLocaleDateString('fr-FR')
-      : '—',
+    date: p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR') : '—',
     montant: p.montant ?? null,
     methode: p.methode_paiement ?? p.methode ?? '—',
-    statut: mapStatut(p.statut ?? ''),
+    statut: mapStatut(p.status ?? p.statut ?? ''), // ← status (backend) ou statut
     raw: p,
   };
 }
@@ -83,9 +86,9 @@ export function AgentPrestations() {
   const statusBadge = (s: StatutPrestation) => {
     const map: Record<StatutPrestation, BadgeVariant> = {
       'En attente': 'orange',
-      'En cours': 'blue',
-      'Approuvée': 'green',
-      'Rejetée': 'red',
+      'En cours':   'blue',
+      'Approuvée':  'green',
+      'Rejetée':    'red',
     };
     return <Badge label={s} variant={map[s]} />;
   };
@@ -113,27 +116,13 @@ export function AgentPrestations() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Demandes reçues"
-          value={loading ? '...' : prestations.length}
-          sub="Total"
-          icon={<Heart className="w-5 h-5" />}
-          color="bg-pink-100 text-pink-600"
-        />
-        <StatCard
-          label="En attente"
-          value={loading ? '...' : prestations.filter(p => p.statut === 'En attente').length}
-          icon={<Clock className="w-5 h-5" />}
-          color="bg-orange-100 text-orange-600"
-        />
-        <StatCard
-          label="Approuvées"
-          value={loading ? '...' : prestations.filter(p => p.statut === 'Approuvée').length}
-          icon={<CheckCircle className="w-5 h-5" />}
-          color="bg-green-100 text-green-600"
-        />
+        <StatCard label="Demandes reçues" value={loading ? '...' : prestations.length} sub="Total"
+          icon={<Heart className="w-5 h-5" />} color="bg-pink-100 text-pink-600" />
+        <StatCard label="En attente" value={loading ? '...' : prestations.filter(p => p.statut === 'En attente').length}
+          icon={<Clock className="w-5 h-5" />} color="bg-orange-100 text-orange-600" />
+        <StatCard label="Approuvées" value={loading ? '...' : prestations.filter(p => p.statut === 'Approuvée').length}
+          icon={<CheckCircle className="w-5 h-5" />} color="bg-green-100 text-green-600" />
         <StatCard
           label="Total versé"
           value={loading ? '...' : montantTotal > 0 ? `${montantTotal.toLocaleString('fr-FR')} FCFA` : '— FCFA'}
@@ -143,7 +132,6 @@ export function AgentPrestations() {
         />
       </div>
 
-      {/* Tableau */}
       <div>
         <SearchBar
           placeholder="Rechercher par bénéficiaire ou type de prestation..."
@@ -187,18 +175,10 @@ export function AgentPrestations() {
                       </button>
                       {p.statut === 'En attente' && (
                         <>
-                          <button
-                            onClick={() => handleValider(p.id)}
-                            className="p-1 text-gray-400 hover:text-green-600"
-                            title="Approuver"
-                          >
+                          <button onClick={() => handleValider(p.id)} className="p-1 text-gray-400 hover:text-green-600" title="Approuver">
                             <CheckCircle className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => handleRejeter(p.id)}
-                            className="p-1 text-gray-400 hover:text-red-600"
-                            title="Rejeter"
-                          >
+                          <button onClick={() => handleRejeter(p.id)} className="p-1 text-gray-400 hover:text-red-600" title="Rejeter">
                             <XCircle className="w-4 h-4" />
                           </button>
                         </>
@@ -212,7 +192,6 @@ export function AgentPrestations() {
         </div>
       </div>
 
-      {/* Paiements à effectuer */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-gray-900">
