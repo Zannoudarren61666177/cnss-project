@@ -7,14 +7,11 @@
 <body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6; max-width: 600px; margin: 0 auto;">
 
     {{-- En-tête CNSS --}}
-    <div style="background: #2563eb; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
-        <img src="{{ asset('images/cnsslogo.png') }}"
-             style="height: 60px; width: auto; margin-bottom: 8px;"
-             alt="Logo CNSS">
-        <h1 style="color: white; margin: 0; font-size: 20px; letter-spacing: 1px;">
+    <div style="background: #2563eb; padding: 14px 16px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 18px; font-weight: 600; letter-spacing: 0.5px;">
             CAISSE NATIONALE DE SÉCURITÉ SOCIALE
         </h1>
-        <p style="color: #bfdbfe; margin: 6px 0 0; font-size: 13px;">
+        <p style="color: #bfdbfe; margin: 6px 0 0; font-size: 12px;">
             01 BP 374 Cotonou — Tél : 01 21 30 27 21 / 01 21 30 27 27
         </p>
     </div>

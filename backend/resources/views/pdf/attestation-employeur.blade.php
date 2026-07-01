@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <style>
         body { font-family: DejaVu Sans, sans-serif; color: #1f2937; font-size: 14px; }
-        .header { text-align: center; margin-bottom: 30px; border-bottom: 3px solid #2563eb; padding-bottom: 20px; }
+        .header { display: flex; align-items: center; justify-content: center; gap: 16px; text-align: left; margin-bottom: 30px; border-bottom: 3px solid #2563eb; padding-bottom: 20px; }
+        .header img { width: 90px; height: auto; display: block; }
         .header h1 { color: #2563eb; font-size: 20px; margin: 0; }
         .header p { font-size: 12px; color: #6b7280; margin: 4px 0; }
         .title { text-align: center; font-size: 18px; font-weight: bold; margin: 30px 0; text-transform: uppercase; }
@@ -21,9 +22,12 @@
 </head>
 <body>
     <div class="header">
-        <h1>RÉPUBLIQUE DU BÉNIN</h1>
-        <p>Caisse Nationale de Sécurité Sociale</p>
-        <p>390, Avenue Jean-Paul II, 01 BP 374 Cadjèhoun - Cotonou</p>
+        <img src="{{ public_path('images/cnsslogo.png') }}" alt="Logo CNSS">
+        <div>
+            <h1>RÉPUBLIQUE DU BÉNIN</h1>
+            <p>Caisse Nationale de Sécurité Sociale</p>
+            <p>390, Avenue Jean-Paul II, 01 BP 374 Cadjèhoun - Cotonou</p>
+        </div>
     </div>
 
     <div class="title">Attestation d'immatriculation</div>

@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <style>
         body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #1a1a1a; margin: 40px; }
-        .header { text-align: center; border-bottom: 3px solid #1a5fa8; padding-bottom: 16px; margin-bottom: 24px; }
+        .header { display: flex; align-items: center; justify-content: center; gap: 16px; text-align: left; border-bottom: 3px solid #1a5fa8; padding-bottom: 16px; margin-bottom: 24px; }
+        .header img { width: 90px; height: auto; display: block; }
         .header h1 { font-size: 16px; color: #1a5fa8; margin: 4px 0; }
         .header p { margin: 2px 0; font-size: 11px; color: #555; }
         .titre { text-align: center; font-size: 18px; font-weight: bold; text-transform: uppercase;
@@ -20,10 +21,13 @@
 </head>
 <body>
     <div class="header">
-        <h1>RÉPUBLIQUE DU BÉNIN</h1>
-        <p>Caisse Nationale de Sécurité Sociale</p>
-        <p>390, Avenue Jean-Paul II — 01 BP 374 Cadjèhoun, Cotonou</p>
-        <p>Tél : +229 90 19 00 00 — info@cnss.bj</p>
+        <img src="{{ public_path('images/cnsslogo.png') }}" alt="Logo CNSS">
+        <div>
+            <h1>RÉPUBLIQUE DU BÉNIN</h1>
+            <p>Caisse Nationale de Sécurité Sociale</p>
+            <p>390, Avenue Jean-Paul II — 01 BP 374 Cadjèhoun, Cotonou</p>
+            <p>Tél : +229 90 19 00 00 — info@cnss.bj</p>
+        </div>
     </div>
 
     <div class="titre">Attestation d'Affiliation</div>

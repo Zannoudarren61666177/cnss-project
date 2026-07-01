@@ -156,6 +156,7 @@ export function Chatbot() {
                 }}
               />
               <button
+                onClick={() => submit(message)}
                 className="px-5 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300"
                 disabled={!message.trim() || loading}
               >

@@ -7,15 +7,23 @@ import { Badge, type BadgeVariant } from './shared/Badge';
 import { StatCard } from './shared/StatCard';
 import { SectionHeader } from './shared/SectionHeader';
 import { SearchBar } from './shared/SearchBar';
-import { getCotisations, validerDeclaration, relancerCotisation } from '../../api'; // ✅ api.ts est dans src/app/
+import {
+  getCotisations,
+  getCotisationsParEmployeur,
+  getEmployeurs,
+  genererCotisationPourEmployeur,
+  validerDeclaration,
+  relancerCotisation,
+} from '../../api'; // ✅ api.ts est dans src/app/
 import CnssToast from '../CnssToast'; // ✅ CnssToast est dans components/
 
 type StatutCotisation = 'En attente' | 'En retard' | 'Vérifiée' | 'Rejetée';
 
 function mapStatut(s: string): StatutCotisation {
-  if (s === 'verifiee' || s === 'payee') return 'Vérifiée';
-  if (s === 'en_retard') return 'En retard';
-  if (s === 'rejetee') return 'Rejetée';
+  const normalized = (s ?? '').toString().toLowerCase();
+  if (['verifiee', 'vérifiée', 'payee', 'payée', 'paid', 'paidé', 'payé'].includes(normalized)) return 'Vérifiée';
+  if (['en_retard', 'en retard', 'retard'].includes(normalized)) return 'En retard';
+  if (['rejetee', 'rejetée', 'rejet'].includes(normalized)) return 'Rejetée';
   return 'En attente';
 }
 
@@ -38,7 +46,10 @@ function mapCotisation(c: any) {
 
 export function AgentCotisation() {
   const [cotisations, setCotisations] = useState<ReturnType<typeof mapCotisation>[]>([]);
+  const [employeurs, setEmployeurs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingEmployeurs, setLoadingEmployeurs] = useState(true);
+  const [generatingId, setGeneratingId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -56,7 +67,22 @@ export function AgentCotisation() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const loadEmployeurs = useCallback(async () => {
+    setLoadingEmployeurs(true);
+    try {
+      const data = await getEmployeurs();
+      setEmployeurs(data as any[]);
+    } catch (err: any) {
+      showToast(err?.message ?? 'Erreur de chargement des employeurs', 'error');
+    } finally {
+      setLoadingEmployeurs(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    loadEmployeurs();
+  }, [load, loadEmployeurs]);
 
   function showToast(message: string, variant: 'success' | 'error' | 'info') {
     setToastMessage(message);
@@ -83,6 +109,65 @@ export function AgentCotisation() {
     }
   }
 
+  async function handleGenererCotisation(employeurId: number, employeurName: string) {
+    const mois = new Date().getMonth() + 1;
+    const annee = new Date().getFullYear();
+    setGeneratingId(employeurId);
+
+    try {
+      const res: any = await genererCotisationPourEmployeur(employeurId, mois, annee);
+
+      // Backend may return a 200 with a message that a cotisation already exists.
+      // In that case show an informational toast and refresh lists instead of polling.
+      const message = (res?.message ?? '').toString();
+      if (message.toLowerCase().includes('existe deja')) {
+        showToast(message, 'info');
+        await load();
+        await loadEmployeurs();
+        setGeneratingId(null);
+        return;
+      }
+
+      showToast(`Cotisation générée pour ${employeurName} (${mois}/${annee}).`, 'success');
+      // Start a short-lived targeted poll to update this employer's cotisations
+      pollCotisationsForEmployeur(employeurId, 8, 3000).catch(() => {});
+    } catch (err: any) {
+      showToast(err?.message ?? 'Erreur lors de la génération', 'error');
+    } finally {
+      // keep the generating state until poll finishes (or error)
+    }
+  }
+
+  async function pollCotisationsForEmployeur(employeurId: number, attempts = 6, delayMs = 3000) {
+    let tries = 0;
+    try {
+      while (tries < attempts) {
+        tries += 1;
+        try {
+          const data = await getCotisationsParEmployeur(employeurId);
+          const mapped = (data as any[]).map(mapCotisation);
+          // merge: replace cotisations for this employer with fresh ones
+          setCotisations(prev => {
+            const others = prev.filter(c => c.employeurId !== employeurId);
+            return [...others, ...mapped];
+          });
+
+          // If there are no non-verified cotisations for this employer, stop polling
+          const hasWaiting = mapped.some(m => m.statut !== 'Vérifiée');
+          if (!hasWaiting) break;
+        } catch (err) {
+          // ignore individual fetch errors and retry
+        }
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    } finally {
+      // ensure we reload employers list and clear spinner
+      try { await loadEmployeurs(); } catch (e) {}
+      try { await load(); } catch (e) {}
+      setGeneratingId(null);
+    }
+  }
+
   async function handleRelancerTous() {
     const enRetard = cotisations.filter(c => c.statut === 'En retard');
     if (enRetard.length === 0) {
@@ -105,6 +190,10 @@ export function AgentCotisation() {
       'Rejetée': 'red',
     };
     return <Badge label={s} variant={map[s]} />;
+  };
+
+  const isEmpWaitingPayment = (employeurId: number) => {
+    return cotisations.some(c => c.employeurId === employeurId && c.statut !== 'Vérifiée');
   };
 
   const filtered = cotisations.filter(c =>
@@ -157,6 +246,48 @@ export function AgentCotisation() {
           icon={<TrendingUp className="w-5 h-5" />}
           color="bg-teal-100 text-teal-600"
         />
+      </div>
+
+      {/* Génération manuelle de cotisations */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Génération manuelle</h3>
+            <p className="text-sm text-gray-500">Liste des employeurs pour générer une cotisation immédiatement.</p>
+          </div>
+          <button
+            onClick={loadEmployeurs}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loadingEmployeurs ? 'animate-spin' : ''}`} /> Actualiser
+          </button>
+        </div>
+
+        {loadingEmployeurs ? (
+          <div className="text-center py-8 text-gray-500">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" /> Chargement des employeurs...
+          </div>
+        ) : employeurs.length === 0 ? (
+          <p className="text-sm text-gray-500">Aucun employeur trouvé.</p>
+        ) : (
+          <div className="space-y-3">
+            {employeurs.map(emp => (
+              <div key={emp.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border border-gray-100 rounded-lg">
+                <div>
+                  <p className="font-semibold text-gray-900">{emp.company_name ?? 'Sans nom'}</p>
+                  <p className="text-xs text-gray-500">CNSS: {emp.numero_cnss ?? '—'} · Statut: {emp.statut ?? '—'}</p>
+                </div>
+                <button
+                  onClick={() => handleGenererCotisation(emp.id, emp.company_name ?? `Employeur ${emp.id}`)}
+                  disabled={generatingId === emp.id || isEmpWaitingPayment(emp.id)}
+                  className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed text-sm font-semibold"
+                >
+                  {generatingId === emp.id ? 'Génération...' : isEmpWaitingPayment(emp.id) ? 'En attente paiement' : 'Générer cotisation'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tableau */}

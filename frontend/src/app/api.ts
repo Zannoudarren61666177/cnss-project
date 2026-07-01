@@ -225,6 +225,15 @@ export async function validerDeclaration(id: number): Promise<any> {
 export async function relancerCotisation(id: number): Promise<any> {
   return apiFetch(`/cotisations/${id}/relancer`, { method: 'POST' });
 }
+export async function envoyerCotisation(id: number): Promise<any> {
+  return apiFetch(`/cotisations/${id}/envoyer`, { method: 'POST' });
+}
+export async function genererCotisationPourEmployeur(employeurId: number, mois: number, annee: number): Promise<any> {
+  return apiFetch('/cotisations/generer', {
+    method: 'POST',
+    body: JSON.stringify({ employeur_id: employeurId, mois, annee }),
+  });
+}
 export async function initierPaiementCotisation(id: number): Promise<{ payment_url: string; transaction_id: number }> {
   return apiFetch(`/cotisations/${id}/initier-paiement`, { method: 'POST' });
 }

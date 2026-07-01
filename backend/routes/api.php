@@ -79,9 +79,10 @@ Route::prefix('v1')->group(function () {
         Route::post('cotisations/generer',                             [CotisationController::class, 'genererPourEmployeur']);
         Route::post('cotisations/{id}/valider',                        [CotisationController::class, 'valider']);
         Route::post('cotisations/{id}/relancer',                       [CotisationController::class, 'relancer']);
+        Route::post('cotisations/{id}/envoyer',                        [CotisationController::class, 'envoyer']);
         Route::post('cotisations/{id}/initier-paiement',               [CotisationController::class, 'initierPaiement']);
         Route::post('cotisations/{id}/verifier-paiement',              [CotisationController::class, 'verifierPaiement']);
-        Route::match(['get', 'post'], 'cotisations/paiement/callback', [CotisationController::class, 'callbackPaiement']);
+        Route::post('cotisations/{id}/simuler-paiement',               [CotisationController::class, 'simulerPaiement']);
 
         // Prestations — routes spécifiques AVANT apiResource
         Route::post('prestations/demander',           [PrestationController::class, 'demander']);        // ← travailleur soumet
@@ -108,4 +109,7 @@ Route::prefix('v1')->group(function () {
         Route::post('notifications/{id}/marquer-lue',    [NotificationController::class, 'marquerLue']);
         Route::delete('notifications/{id}',              [NotificationController::class, 'destroy']);
     });
+
+    // Callback FedaPay accessible sans auth
+    Route::match(['get', 'post'], 'cotisations/paiement/callback', [CotisationController::class, 'callbackPaiement']);
 });

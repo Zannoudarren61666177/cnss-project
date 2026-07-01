@@ -354,8 +354,6 @@ export function EmployeurDashboard() {
                 </button>
               </div>
             )}
-
-            {/* Statistiques */}
             <div className="grid md:grid-cols-4 gap-6">
               <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                 <div className="flex items-center justify-between mb-4">
@@ -940,7 +938,7 @@ export function EmployeurDashboard() {
                   </div>
                 </div>
 
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-3">
                   {selectedDeclaration.statut !== 'Payée' && (
                     <button
                       onClick={() => handlePaiementCotisation(selectedDeclaration)}
@@ -1094,14 +1092,16 @@ export function EmployeurDashboard() {
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-2xl text-gray-900 mb-3">{declaration.montant.toLocaleString()} FCFA</p>
-                        <button
-                          onClick={() => handlePaiementCotisation(declaration)}
-                          disabled={paiementEnCoursId === declaration.id}
-                          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                        >
-                          <CreditCard className="w-5 h-5" />
-                          {paiementEnCoursId === declaration.id ? 'Redirection...' : 'Payer via FedaPay'}
-                        </button>
+                        <div className="flex flex-wrap gap-3 justify-end">
+                          <button
+                            onClick={() => handlePaiementCotisation(declaration)}
+                            disabled={paiementEnCoursId === declaration.id}
+                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                          >
+                            <CreditCard className="w-5 h-5" />
+                            {paiementEnCoursId === declaration.id ? 'Redirection...' : 'Payer via FedaPay'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

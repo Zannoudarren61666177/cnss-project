@@ -23,10 +23,8 @@ class DatabaseSeeder extends Seeder
 
         // Call custom seeders
         $this->call([
-            AgentSeeder::class,
             FaqSeeder::class,
             ActualiteSeeder::class,
-            EmployeurTestSeeder::class,
         ]);
     }
 }

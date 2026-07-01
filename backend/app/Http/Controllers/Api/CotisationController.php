@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cotisation;
+use App\Mail\CotisationNotificationMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use App\Helpers\ActivityLogger;
 
 class CotisationController extends Controller
@@ -103,11 +105,15 @@ class CotisationController extends Controller
         }
 
         // ── Créer une nouvelle transaction FedaPay ────────────────────────────
+        $callbackUrl = $request->input('callback_url')
+            ?? env('FEDAPAY_CALLBACK_URL')
+            ?? config('app.url') . '/api/v1/cotisations/paiement/callback';
+
         $payload = [
             'description'     => 'Cotisation CNSS ' . ($cotisation->reference ?? $cotisation->id),
             'amount'          => (int) round((float) $cotisation->montant),
             'currency'        => ['iso' => 'XOF'],
-            'callback_url'    => $request->input('callback_url', url('/api/v1/cotisations/paiement/callback')),
+            'callback_url'    => $callbackUrl,
             'custom_metadata' => [
                 'cotisation_id' => $cotisation->id,
                 'employeur_id'  => $cotisation->employeur_id,
@@ -133,13 +139,40 @@ class CotisationController extends Controller
         }
 
         $transaction   = $response->json();
-        $transactionId = data_get($transaction, 'v1/transaction.id');
-        $paymentUrl    = data_get($transaction, 'v1/transaction.payment_url');
+        $transactionId = data_get($transaction, 'v1/transaction.id') ?: data_get($transaction, 'id');
+        $paymentUrl    = data_get($transaction, 'v1/transaction.payment_url')
+            ?? data_get($transaction, 'v1/transaction.token.url')
+            ?? data_get($transaction, 'payment_url');
 
-        if (!$transactionId || !$paymentUrl) {
+        if (!$transactionId) {
             return response()->json([
-                'message' => 'Reponse FedaPay invalide.',
+                'message' => 'Reponse FedaPay invalide : identifiant de transaction manquant.',
                 'details' => $transaction,
+            ], 502);
+        }
+
+        if (!$paymentUrl) {
+            $tokenResponse = Http::withToken($secretKey)
+                ->acceptJson()
+                ->post($baseUrl . '/transactions/' . $transactionId . '/token', [
+                    'callback_url' => $callbackUrl,
+                ]);
+
+            if ($tokenResponse->successful()) {
+                $tokenData = $tokenResponse->json();
+                $paymentUrl = data_get($tokenData, 'url')
+                    ?? data_get($tokenData, 'data.url')
+                    ?? data_get($tokenData, 'v1/transaction.token.url');
+            }
+        }
+
+        if (!$paymentUrl) {
+            return response()->json([
+                'message' => 'Reponse FedaPay invalide : aucun lien de paiement trouvé.',
+                'details' => [
+                    'transaction' => $transaction,
+                    'token_response' => isset($tokenResponse) ? $tokenResponse->json() : null,
+                ],
             ], 502);
         }
 
@@ -236,6 +269,26 @@ class CotisationController extends Controller
         return response()->json(['message' => 'Callback traite.', 'cotisation' => $cotisation->fresh()]);
     }
 
+    public function simulerPaiement(Request $request, string $id)
+    {
+        $cotisation = Cotisation::findOrFail($id);
+
+        $status = $request->input('status', 'approved');
+        $normalizedStatus = strtolower((string) $status);
+
+        if (in_array($normalizedStatus, ['approved', 'successful', 'succeeded', 'paid', 'complete', 'completed', 'success'])) {
+            $cotisation->update(['status' => 'Payée', 'date_paiement' => now()]);
+            return response()->json(['message' => 'Paiement simule et confirmé.', 'cotisation' => $cotisation->fresh()]);
+        }
+
+        if (in_array($normalizedStatus, ['failed', 'canceled', 'cancelled', 'expired', 'error'])) {
+            $cotisation->update(['status' => 'Echec']);
+            return response()->json(['message' => 'Paiement simule et echec.', 'cotisation' => $cotisation->fresh()]);
+        }
+
+        return response()->json(['message' => 'Statut de simulation invalide.', 'statut' => $normalizedStatus], 400);
+    }
+
     public function destroy(string $id)
     {
         $cotisation = Cotisation::findOrFail($id);
@@ -265,14 +318,64 @@ class CotisationController extends Controller
             return response()->json(['message' => 'Employeur introuvable'], 404);
         }
 
+        $user = $cotisation->employeur->user;
+
         \App\Models\Notification::create([
-            'user_id' => $cotisation->employeur->user->id,
+            'user_id' => $user->id,
             'type'    => 'relance_cotisation',
             'content' => "Rappel : votre declaration de cotisations pour la periode {$cotisation->mois}/{$cotisation->annee} est en retard. Merci de regulariser votre situation.",
             'read_at' => null,
         ]);
 
-        return response()->json(['message' => 'Relance envoyee avec succes']);
+        $emailSent = true;
+        $message = 'Relance envoyée avec succès.';
+
+        try {
+            Mail::to($user->email)
+                ->send(new CotisationNotificationMail($cotisation, 'rappel'));
+        } catch (\Throwable $e) {
+            $emailSent = false;
+            $message = 'Relance enregistrée, mais l\'email n\'a pas pu être envoyé.';
+        }
+
+        return response()->json([
+            'message'    => $message,
+            'email_sent' => $emailSent,
+        ]);
+    }
+
+    public function envoyer(string $id)
+    {
+        $cotisation = Cotisation::with('employeur.user')->findOrFail($id);
+
+        if (!$cotisation->employeur || !$cotisation->employeur->user) {
+            return response()->json(['message' => 'Employeur introuvable'], 404);
+        }
+
+        $user = $cotisation->employeur->user;
+
+        \App\Models\Notification::create([
+            'user_id' => $user->id,
+            'type'    => 'cotisation_envoyee',
+            'content' => "Votre cotisation pour la periode {$cotisation->mois}/{$cotisation->annee} a été envoyée par email.",
+            'read_at' => null,
+        ]);
+
+        $emailSent = true;
+        $message = 'Email de cotisation envoyé avec succès.';
+
+        try {
+            Mail::to($user->email)
+                ->send(new CotisationNotificationMail($cotisation, 'generee'));
+        } catch (\Throwable $e) {
+            $emailSent = false;
+            $message = 'La notification a été enregistrée, mais l\'email n\'a pas pu être envoyé.';
+        }
+
+        return response()->json([
+            'message'    => $message,
+            'email_sent' => $emailSent,
+        ]);
     }
 
     public function parEmployeur(string $employeur_id)
@@ -293,6 +396,33 @@ class CotisationController extends Controller
             'mois'         => ['required', 'integer', 'between:1,12'],
             'annee'        => ['required', 'integer'],
         ]);
+
+        // Si une cotisation existe déjà pour cet employeur / mois / annee,
+        // on bloque la création uniquement si la cotisation existante n'a pas
+        // été payée / vérifiée. Si elle est payée, on autorise la création
+        // d'une nouvelle cotisation mais on s'assure d'une référence unique
+        // pour éviter les contraintes d'unicité en base.
+        $existing = Cotisation::where('employeur_id', $data['employeur_id'])
+            ->where('mois', $data['mois'])
+            ->where('annee', $data['annee'])
+            ->first();
+        $isPaid = false;
+
+        if ($existing) {
+            $status = strtolower((string) ($existing->status ?? ''));
+            $paidStates = ['payée', 'payee', 'vérifiée', 'verifiee', 'payée', 'paid', 'paidé', 'payé'];
+
+            $isPaid = in_array($status, array_map('strtolower', $paidStates));
+
+            if (! $isPaid) {
+                return response()->json([
+                    'message'    => 'Une cotisation existe deja pour cette periode.',
+                    'cotisation' => $existing->load('details.travailleur'),
+                ], 200);
+            }
+            // Si la cotisation existante est payée, on continue la génération
+            // mais on créera une référence unique ci-dessous.
+        }
 
         $tauxSalarial = 3.6;
         $tauxPatronal = 15.4;
@@ -330,13 +460,18 @@ class CotisationController extends Controller
             ];
         }
 
+        $reference = 'CTS-' . $data['annee'] . str_pad($data['mois'], 2, '0', STR_PAD_LEFT) . '-' . $data['employeur_id'];
+        if ($isPaid) {
+            $reference .= '-' . time();
+        }
+
         $cotisation = Cotisation::create([
             'employeur_id' => $data['employeur_id'],
             'montant'      => $montantTotal,
             'mois'         => $data['mois'],
             'annee'        => $data['annee'],
             'status'       => 'En attente',
-            'reference'    => 'CTS-' . $data['annee'] . str_pad($data['mois'], 2, '0', STR_PAD_LEFT) . '-' . $data['employeur_id'],
+            'reference'    => $reference,
             'echeance'     => now()->setDate($data['annee'], $data['mois'], 1)->endOfMonth()->addDays(15),
         ]);
 
@@ -345,8 +480,29 @@ class CotisationController extends Controller
             \App\Models\CotisationDetail::create($detail);
         }
 
+        $emailSent = true;
+        $message = 'Cotisation generee avec succes.';
+
+        try {
+            if ($cotisation->employeur && $cotisation->employeur->user) {
+                \App\Models\Notification::create([
+                    'user_id' => $cotisation->employeur->user->id,
+                    'type'    => 'cotisation_envoyee',
+                    'content' => "Votre cotisation pour la periode {$cotisation->mois}/{$cotisation->annee} a ete generee.",
+                    'read_at' => null,
+                ]);
+
+                Mail::to($cotisation->employeur->user->email)
+                    ->send(new CotisationNotificationMail($cotisation, 'generee'));
+            }
+        } catch (\Throwable $e) {
+            $emailSent = false;
+            $message = 'Cotisation generee avec succes, mais l\'email n\'a pas pu etre envoye.';
+        }
+
         return response()->json([
-            'message'    => 'Cotisation generee avec succes',
+            'message'    => $message,
+            'email_sent' => $emailSent,
             'cotisation' => $cotisation->load('details.travailleur'),
         ], 201);
     }
